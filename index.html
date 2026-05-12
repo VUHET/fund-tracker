@@ -1,0 +1,644 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="投資トラッカー">
+<meta name="theme-color" content="#3b82f6">
+<title>投資信託トラッカー</title>
+<link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/512/2977/2977860.png">
+<script>
+const manifest = {
+  name:"投資信託トラッカー", short_name:"投資トラッカー",
+  description:"投資信託のポートフォリオを管理するアプリ",
+  start_url:"./", display:"standalone",
+  background_color:"#f0f7ff", theme_color:"#3b82f6", orientation:"portrait",
+  icons:[
+    {src:"https://cdn-icons-png.flaticon.com/512/2977/2977860.png",sizes:"192x192",type:"image/png"},
+    {src:"https://cdn-icons-png.flaticon.com/512/2977/2977860.png",sizes:"512x512",type:"image/png"}
+  ]
+};
+const mblob = new Blob([JSON.stringify(manifest)],{type:"application/json"});
+const mlink = document.createElement("link");
+mlink.rel="manifest"; mlink.href=URL.createObjectURL(mblob);
+document.currentScript.parentNode.appendChild(mlink);
+
+const swCode=`
+self.addEventListener('install',e=>self.skipWaiting());
+self.addEventListener('activate',e=>e.waitUntil(self.clients.claim()));
+self.addEventListener('fetch',e=>e.respondWith(fetch(e.request).catch(()=>new Response('offline'))));
+`;
+if('serviceWorker' in navigator){
+  const swBlob=new Blob([swCode],{type:"text/javascript"});
+  navigator.serviceWorker.register(URL.createObjectURL(swBlob),{scope:'./'}).catch(()=>{});
+}
+</script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;}
+body{background:#f0f7ff;color:#1e293b;font-family:'Helvetica Neue',sans-serif;padding-bottom:80px;font-size:14px;}
+
+/* ロック画面 */
+#lockScreen{
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  min-height:100vh;padding:32px 20px;
+  background:linear-gradient(160deg,#dbeafe 0%,#eff6ff 60%,#e0f2fe 100%);
+}
+.lock-icon{font-size:56px;margin-bottom:16px;}
+.lock-title{font-size:22px;font-weight:900;color:#1e3a5f;margin-bottom:6px;}
+.lock-sub{font-size:13px;color:#64748b;margin-bottom:32px;text-align:center;line-height:1.6;}
+.lock-card{background:#fff;border:1px solid #bfdbfe;border-radius:20px;padding:24px;width:100%;max-width:400px;box-shadow:0 4px 20px rgba(59,130,246,0.12);}
+.lock-card h2{font-size:15px;font-weight:800;color:#1e3a5f;margin-bottom:8px;}
+.lock-card p{font-size:12px;color:#64748b;margin-bottom:12px;line-height:1.6;}
+.lock-card textarea{width:100%;height:120px;border:1px solid #bfdbfe;border-radius:10px;padding:10px;font-size:11px;font-family:monospace;color:#1e293b;background:#f8faff;resize:vertical;margin-bottom:10px;}
+.lock-btn{width:100%;padding:12px;border-radius:12px;border:none;cursor:pointer;font-size:14px;font-weight:800;background:#3b82f6;color:#fff;box-shadow:0 2px 8px rgba(59,130,246,0.3);}
+.lock-btn:active{opacity:0.85;}
+.lock-err{font-size:12px;color:#e11d48;background:#fff1f2;border-radius:8px;padding:8px 10px;margin-top:8px;}
+
+/* メインアプリ */
+#app{display:none;}
+.header{background:linear-gradient(180deg,#dbeafe,#f0f7ff);padding:24px 16px 0;max-width:680px;margin:0 auto;}
+.app-label{font-size:10px;letter-spacing:4px;color:#3b82f6;font-weight:700;margin-bottom:4px;}
+h1{font-size:20px;font-weight:900;color:#1e3a5f;margin-bottom:16px;}
+.main{max-width:680px;margin:0 auto;padding:0 16px;}
+.card{background:#fff;border:1px solid #bfdbfe;border-radius:14px;padding:16px;box-shadow:0 1px 4px rgba(59,130,246,0.08);margin-bottom:12px;}
+.card-label{font-size:10px;color:#64748b;margin-bottom:4px;}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px;}
+.full{grid-column:1/-1;}
+.tabs{display:flex;gap:8px;margin-bottom:14px;overflow-x:auto;padding-bottom:4px;}
+.tab{padding:6px 14px;border-radius:20px;border:none;cursor:pointer;font-size:12px;font-weight:700;white-space:nowrap;transition:all .2s;background:#dbeafe;color:#3b82f6;}
+.tab.active{background:#3b82f6;color:#fff;}
+.metric-btns{display:flex;gap:6px;margin-bottom:12px;}
+.mbtn{padding:4px 12px;border-radius:16px;border:none;cursor:pointer;font-size:11px;font-weight:600;background:#dbeafe;color:#3b82f6;}
+.mbtn.active{background:#3b82f6;color:#fff;}
+.chart-wrap{position:relative;height:180px;margin-bottom:4px;}
+table{width:100%;border-collapse:collapse;font-size:12px;margin-top:12px;}
+th{padding:6px 8px;color:#64748b;text-align:right;font-weight:600;border-bottom:1px solid #bfdbfe;}
+td{padding:7px 8px;text-align:right;border-bottom:1px solid #eff6ff;}
+.fund-card{background:#fff;border:1px solid #bfdbfe;border-radius:12px;padding:14px;margin-bottom:10px;box-shadow:0 1px 4px rgba(59,130,246,0.06);}
+.fund-stats{display:flex;gap:16px;flex-wrap:wrap;margin-top:8px;}
+.legend{display:flex;flex-wrap:wrap;gap:8px 14px;margin-top:10px;}
+.legend-item{display:flex;align-items:center;gap:5px;font-size:11px;color:#64748b;}
+.legend-line{width:12px;height:3px;border-radius:2px;}
+/* 月・日ピッカー */
+.picker-wrap{flex:1;background:#f8faff;border:1px solid #bfdbfe;border-radius:12px;padding:8px 6px;display:flex;flex-direction:column;gap:4px;}
+.picker-label{font-size:10px;color:#94a3b8;text-align:center;font-weight:600;}
+.picker-selected{font-size:15px;font-weight:800;color:#1e40af;text-align:center;margin-bottom:4px;}
+.picker-row{display:flex;gap:4px;}
+.picker-col{flex:1;display:flex;flex-direction:column;gap:2px;}
+.picker-col-label{font-size:10px;color:#94a3b8;text-align:center;}
+.picker-scroll{height:88px;overflow-y:scroll;scroll-snap-type:y mandatory;-webkit-overflow-scrolling:touch;scrollbar-width:none;border-radius:8px;background:#fff;border:1px solid #bfdbfe;position:relative;}
+.picker-scroll::-webkit-scrollbar{display:none;}
+.picker-item{height:32px;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:600;color:#94a3b8;scroll-snap-align:center;}
+.picker-item.active{color:#1e40af;font-weight:800;font-size:14px;}
+.picker-pad{height:28px;flex-shrink:0;}
+.picker-overlay-t{position:absolute;top:0;left:0;right:0;height:28px;background:linear-gradient(to bottom,rgba(255,255,255,0.9),transparent);pointer-events:none;}
+.picker-overlay-b{position:absolute;bottom:0;left:0;right:0;height:28px;background:linear-gradient(to top,rgba(255,255,255,0.9),transparent);pointer-events:none;}
+.picker-line{position:absolute;top:50%;left:4px;right:4px;height:32px;margin-top:-16px;border-top:1.5px solid #bfdbfe;border-bottom:1.5px solid #bfdbfe;pointer-events:none;border-radius:4px;}
+
+/* データ更新モーダル */
+.modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.4);z-index:100;align-items:center;justify-content:center;padding:16px;}
+.modal-overlay.show{display:flex;}
+.modal{background:#fff;border-radius:16px;padding:20px;width:100%;max-width:500px;max-height:80vh;overflow-y:auto;}
+.modal h2{font-size:16px;font-weight:800;color:#1e3a5f;margin-bottom:12px;}
+.modal textarea{width:100%;height:140px;border:1px solid #bfdbfe;border-radius:8px;padding:10px;font-size:11px;font-family:monospace;color:#1e293b;background:#f8faff;resize:vertical;margin-bottom:10px;}
+.modal-btns{display:flex;gap:8px;}
+.btn{padding:8px 16px;border-radius:10px;border:none;cursor:pointer;font-size:13px;font-weight:700;}
+.btn-primary{background:#3b82f6;color:#fff;flex:1;}
+.btn-secondary{background:#dbeafe;color:#3b82f6;}
+.update-btn{background:#3b82f6;color:#fff;border:none;border-radius:20px;padding:7px 14px;font-size:12px;font-weight:700;cursor:pointer;box-shadow:0 2px 6px rgba(59,130,246,0.3);}
+.logout-btn{background:#fff;color:#94a3b8;border:1px solid #e2e8f0;border-radius:20px;padding:7px 12px;font-size:12px;font-weight:700;cursor:pointer;}
+.msg{font-size:12px;margin-top:6px;padding:6px 10px;border-radius:8px;}
+.msg.ok{background:#ecfdf5;color:#0d9488;}
+.msg.err{background:#fff1f2;color:#e11d48;}
+</style>
+</head>
+<body>
+
+<!-- ロック画面（データなし時に表示） -->
+<div id="lockScreen">
+  <div class="lock-icon">📊</div>
+  <div class="lock-title">投資信託トラッカー</div>
+  <div class="lock-sub">データを読み込むと<br>ポートフォリオが表示されます</div>
+  <div class="lock-card">
+    <h2>📋 データを貼り付けて開始</h2>
+    <p>Claudeから受け取ったJSONを貼り付けてください。データはこのブラウザにのみ保存され、URLからは見えません。</p>
+    <textarea id="lockJsonInput" placeholder='{"history":[...],"funds":[]}'></textarea>
+    <button class="lock-btn" onclick="unlockWithJson()">データを読み込む</button>
+    <div id="lockErr"></div>
+  </div>
+</div>
+
+<!-- メインアプリ（データ読み込み後に表示） -->
+<div id="app">
+  <div class="modal-overlay" id="modal">
+    <div class="modal">
+      <h2>📋 データを更新する</h2>
+      <p style="font-size:12px;color:#64748b;margin-bottom:12px">Claudeから受け取ったJSONを貼り付けてください。</p>
+      <textarea id="jsonInput" placeholder='{"history":[...],"funds":[]}'></textarea>
+      <div id="modalMsg"></div>
+      <div class="modal-btns">
+        <button class="btn btn-secondary" onclick="closeModal()">キャンセル</button>
+        <button class="btn btn-primary" onclick="importData()">更新する</button>
+      </div>
+      <div style="margin-top:16px;border-top:1px solid #bfdbfe;padding-top:12px">
+        <p style="font-size:11px;color:#94a3b8;margin-bottom:8px">現在のデータをエクスポート（バックアップ用）</p>
+        <button class="btn btn-secondary" style="width:100%;font-size:12px" onclick="exportData()">現在のデータをコピー</button>
+        <div id="exportMsg"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="header">
+    <div class="app-label">FUND TRACKER</div>
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;gap:8px">
+      <h1 style="margin-bottom:0;flex:1">投資信託ポートフォリオ</h1>
+      <div style="display:flex;gap:6px;flex-shrink:0">
+        <button class="logout-btn" onclick="logout()">🔒</button>
+        <button class="update-btn" onclick="openModal()">📊 更新</button>
+      </div>
+    </div>
+    <div class="grid2" id="summaryCards"></div>
+  </div>
+  <div class="main">
+    <div class="tabs" id="mainTabs"></div>
+    <div id="tabContent"></div>
+  </div>
+</div>
+
+<script>
+// ===== ストレージ（セッションのみ） =====
+// localStorageには保存しない → ブラウザを閉じるとデータが消える
+// sessionStorageに保存 → 同じタブ内だけ保持、URLからはアクセス不可
+let DATA = null;
+
+function loadFromSession() {
+  try {
+    const s = sessionStorage.getItem('fundTrackerData');
+    return s ? JSON.parse(s) : null;
+  } catch(e) { return null; }
+}
+function saveToSession(d) {
+  try { sessionStorage.setItem('fundTrackerData', JSON.stringify(d)); } catch(e) {}
+}
+function clearSession() {
+  try { sessionStorage.removeItem('fundTrackerData'); } catch(e) {}
+}
+
+// ===== ロック画面 =====
+function unlockWithJson() {
+  const txt = document.getElementById('lockJsonInput').value.trim();
+  const errEl = document.getElementById('lockErr');
+  try {
+    const parsed = JSON.parse(txt);
+    if (!parsed.history || !parsed.funds) throw new Error('historyとfundsが必要です');
+    DATA = parsed;
+    saveToSession(DATA);
+    showApp();
+  } catch(e) {
+    errEl.innerHTML = `<div class="lock-err">❌ エラー：${e.message}</div>`;
+  }
+}
+
+function logout() {
+  if (!confirm('ロックしますか？データはこのタブを閉じるまで保持されます。')) return;
+  clearSession();
+  DATA = null;
+  document.getElementById('app').style.display = 'none';
+  document.getElementById('lockScreen').style.display = 'flex';
+  document.getElementById('lockJsonInput').value = '';
+  document.getElementById('lockErr').innerHTML = '';
+}
+
+function showApp() {
+  document.getElementById('lockScreen').style.display = 'none';
+  document.getElementById('app').style.display = 'block';
+  init();
+}
+
+// ===== 起動時チェック =====
+const sessionData = loadFromSession();
+if (sessionData) {
+  DATA = sessionData;
+  showApp();
+}
+
+// ===== ユーティリティ =====
+const fmt = v => v==null?"—":`¥${Number(v).toLocaleString("ja-JP")}`;
+const fmtPct = v => v==null?"—":`${v>=0?"+":""}${Number(v).toFixed(2)}%`;
+const col = v => v==null?"#94a3b8":v>=0?"#0d9488":"#e11d48";
+const getMonth = d => d.split("/")[0]+"月";
+const parseDate = d => { const [m,day]=d.split("/"); return new Date(2026,parseInt(m)-1,parseInt(day)); };
+
+let mainTab="total", monthTab="", fundsView="total", metric="total", rangeStart="", rangeEnd="", charts={};
+function getMonths(){return[...new Set(DATA.history.map(d=>getMonth(d.date)))];}
+
+function init() {
+  const months=getMonths();
+  monthTab=months[0]||"";
+  rangeStart=DATA.history[0]?.date||"";
+  rangeEnd=DATA.history[DATA.history.length-1]?.date||"";
+  render();
+}
+
+// ===== モーダル =====
+function openModal(){document.getElementById('modal').classList.add('show');document.getElementById('jsonInput').value='';document.getElementById('modalMsg').innerHTML='';}
+function closeModal(){document.getElementById('modal').classList.remove('show');}
+function importData(){
+  const txt=document.getElementById('jsonInput').value.trim();
+  const msgEl=document.getElementById('modalMsg');
+  try{
+    const parsed=JSON.parse(txt);
+    if(!parsed.history||!parsed.funds)throw new Error('historyとfundsが必要です');
+    DATA=parsed; saveToSession(DATA);
+    msgEl.innerHTML='<div class="msg ok">✅ 更新しました！</div>';
+    setTimeout(()=>{closeModal();init();},800);
+  }catch(e){msgEl.innerHTML=`<div class="msg err">❌ エラー：${e.message}</div>`;}
+}
+function exportData(){
+  navigator.clipboard.writeText(JSON.stringify(DATA))
+    .then(()=>{document.getElementById('exportMsg').innerHTML='<div class="msg ok">✅ コピーしました</div>';})
+    .catch(()=>{document.getElementById('exportMsg').innerHTML='<div class="msg err">手動でコピーしてください</div>';});
+}
+
+// ===== チャート =====
+function destroyChart(id){if(charts[id]){charts[id].destroy();delete charts[id];}}
+
+// ===== サマリー =====
+function renderSummary(){
+  const h=DATA.history,latest=h[h.length-1],first=h[0];
+  const daysDiff=Math.max(1,Math.round((parseDate(latest.date)-parseDate(first.date))/86400000));
+  const totalReturn=(latest.total-first.total)/first.total;
+  const annualReturn=((1+totalReturn/daysDiff)**365-1)*100;
+  const projected=Math.round(latest.total*(1+annualReturn/100));
+  // 年末予測（12/31まで残り日数から計算）
+  const today = new Date();
+  const yearEnd = new Date(today.getFullYear(), 11, 31);
+  const daysToYearEnd = Math.max(1, Math.round((yearEnd - today) / 86400000));
+  const dailyReturn = totalReturn / daysDiff;
+  const yearEndProjected = Math.round(latest.total * (1 + dailyReturn) ** daysToYearEnd);
+  const rsData=h.find(d=>d.date===rangeStart),reData=h.find(d=>d.date===rangeEnd);
+  const rChange=rsData&&reData?reData.total-rsData.total:null;
+  const rPct=rsData&&rChange!=null?rChange/rsData.total*100:null;
+
+  const dateList = h.map(d=>d.date);
+  const months = [...new Set(dateList.map(d=>d.split("/")[0]))].map(Number).sort((a,b)=>a-b);
+
+  function getAvailableDays(month) {
+    return dateList.filter(d=>parseInt(d.split("/")[0])===month).map(d=>parseInt(d.split("/")[1])).sort((a,b)=>a-b);
+  }
+
+  function pickerHtml(pid, selected) {
+    const [sm, sd] = selected.split("/").map(Number);
+    const availDays = getAvailableDays(sm);
+    return `<div class="picker-wrap">
+      <div class="picker-selected" id="${pid}-label">${selected}</div>
+      <div class="picker-row">
+        <div class="picker-col">
+          <div class="picker-col-label">月</div>
+          <div class="picker-scroll" id="${pid}-m" onscroll="onPickerScroll('${pid}','m')">
+            <div class="picker-pad"></div>
+            ${months.map(m=>`<div class="picker-item${m===sm?" active":""}" data-val="${m}">${m}月</div>`).join("")}
+            <div class="picker-pad"></div>
+            <div class="picker-overlay-t"></div>
+            <div class="picker-overlay-b"></div>
+            <div class="picker-line"></div>
+          </div>
+        </div>
+        <div class="picker-col">
+          <div class="picker-col-label">日</div>
+          <div class="picker-scroll" id="${pid}-d" onscroll="onPickerScroll('${pid}','d')">
+            <div class="picker-pad"></div>
+            ${availDays.map(d=>`<div class="picker-item${d===sd?" active":""}" data-val="${d}">${d}日</div>`).join("")}
+            <div class="picker-pad"></div>
+            <div class="picker-overlay-t"></div>
+            <div class="picker-overlay-b"></div>
+            <div class="picker-line"></div>
+          </div>
+        </div>
+      </div>
+    </div>`;
+  }
+
+  document.getElementById('summaryCards').innerHTML=`
+    <div class="card">
+      <div class="card-label">最新評価額（${latest.date}）</div>
+      <div style="font-size:17px;font-weight:800;color:#1e3a5f">${fmt(latest.total)}</div>
+    </div>
+    <div class="card" style="background:linear-gradient(135deg,#ecfdf5,#d1fae5);border-color:#6ee7b7">
+      <div class="card-label">含み益（${latest.date}）</div>
+      <div style="font-size:15px;font-weight:800;color:#0d9488">${fmt(latest.pnl)}</div>
+      <div style="font-size:12px;color:#0d9488">${fmtPct(latest.pnlPct)}</div>
+    </div>
+    <div class="card full">
+      <div class="card-label" style="font-weight:600;margin-bottom:10px">📅 期間変化（日付指定）</div>
+      <div style="display:flex;gap:10px;align-items:center;margin-bottom:12px">
+        ${pickerHtml("ps", rangeStart)}
+        <div style="color:#94a3b8;font-size:18px;flex-shrink:0">→</div>
+        ${pickerHtml("pe", rangeEnd)}
+      </div>
+      <div id="rangeResult">
+      ${rChange!=null?`<div style="display:flex;gap:20px;flex-wrap:wrap">
+        <div><div class="card-label">評価額変化</div><div style="font-size:18px;font-weight:800;color:${col(rChange)}">${rChange>=0?"+":""}${fmt(Math.abs(rChange))}</div></div>
+        <div><div class="card-label">変化率</div><div style="font-size:18px;font-weight:800;color:${col(rPct)}">${fmtPct(rPct)}</div></div>
+        <div><div class="card-label">開始時評価額</div><div style="font-size:13px;font-weight:600;color:#64748b">${fmt(rsData?.total)}</div></div>
+      </div>`:'<div style="font-size:12px;color:#94a3b8">同じ日付が選択されています</div>'}
+      </div>
+    </div>
+    <div class="card full" style="background:linear-gradient(135deg,#ede9fe,#ddd6fe);border-color:#c4b5fd">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start">
+        <div>
+          <div style="font-size:10px;color:#7c3aed;font-weight:700;letter-spacing:2px;margin-bottom:4px">年率リターン予測（参考値）</div>
+          <div style="font-size:24px;font-weight:900;color:${col(annualReturn)}">${annualReturn>=0?"+":""}${annualReturn.toFixed(1)}%</div>
+          <div style="border-top:1px solid #c4b5fd;margin-top:10px;padding-top:10px">
+            <div style="font-size:10px;color:#7c3aed;font-weight:700;letter-spacing:2px;margin-bottom:4px">1年後の評価額予測</div>
+            <div style="font-size:17px;font-weight:800;color:#4c1d95">${fmt(projected)}</div>
+            <div style="font-size:11px;color:#7c3aed;margin-top:2px">現在 ${fmt(latest.total)} → 差額 ${fmt(projected-latest.total)}</div>
+            <div style="border-top:1px solid #c4b5fd;margin-top:10px;padding-top:10px">
+              <div style="font-size:10px;color:#7c3aed;font-weight:700;letter-spacing:2px;margin-bottom:4px">年末（12/31）予測 残り${daysToYearEnd}日</div>
+              <div style="font-size:17px;font-weight:800;color:#4c1d95">${fmt(yearEndProjected)}</div>
+              <div style="font-size:11px;color:#7c3aed;margin-top:2px">リターン予測 ${((yearEndProjected-latest.total)/latest.total*100)>=0?"+":""}${((yearEndProjected-latest.total)/latest.total*100).toFixed(1)}% / 差額 ${fmt(yearEndProjected-latest.total)}</div>
+            </div>
+          </div>
+        </div>
+        <div style="font-size:10px;color:#7c3aed;text-align:right;line-height:1.8">※ ${daysDiff}日間を<br>年率換算<br>参考値</div>
+      </div>
+    </div>`;
+
+  // ドラムロール初期化
+  setTimeout(() => {
+    initPicker("ps", rangeStart);
+    initPicker("pe", rangeEnd);
+  }, 50);
+}
+
+// ===== タブ =====
+function renderTabs(){
+  document.getElementById('mainTabs').innerHTML=[["total","全期間"],["monthly","月別"],["funds","ファンド別"]]
+    .map(([k,l])=>`<button class="tab${mainTab===k?" active":""}" onclick="switchMain('${k}')">${l}</button>`).join("");
+}
+function switchMain(t){mainTab=t;Object.keys(charts).forEach(destroyChart);renderTabs();renderContent();}
+function renderContent(){
+  if(mainTab==="total")renderTotal();
+  else if(mainTab==="monthly")renderMonthly();
+  else renderFunds();
+}
+
+// ===== 全期間 =====
+function renderTotal(){
+  const h=DATA.history;
+  const rows=[...h].reverse().map(d=>`<tr>
+    <td style="color:#64748b">${d.date}</td>
+    <td style="font-weight:600;color:#1e293b">${fmt(d.total)}</td>
+    <td style="font-weight:600;color:${col(d.pnl)}">${d.pnl!=null?(d.pnl>=0?"+":"")+fmt(d.pnl):"—"}</td>
+    <td style="font-weight:700;color:${col(d.pnlPct)}">${fmtPct(d.pnlPct)}</td>
+  </tr>`).join("");
+  document.getElementById('tabContent').innerHTML=`
+    <div class="card" style="border-radius:16px">
+      <div class="metric-btns">
+        <button class="mbtn${metric==="total"?" active":""}" onclick="switchMetric('total')">評価額</button>
+        <button class="mbtn${metric==="pnl"?" active":""}" onclick="switchMetric('pnl')">含み益</button>
+        <button class="mbtn${metric==="pnlPct"?" active":""}" onclick="switchMetric('pnlPct')">損益率</button>
+      </div>
+      <div class="chart-wrap"><canvas id="mainChart"></canvas></div>
+      <table><thead><tr><th>日付</th><th>評価額</th><th>含み損益</th><th>損益率</th></tr></thead><tbody>${rows}</tbody></table>
+    </div>`;
+  buildMainChart();
+}
+function switchMetric(m){metric=m;destroyChart('main');renderTotal();}
+
+// データ数に応じてドットサイズを自動調整
+function dotSize(n){ return n > 60 ? 0 : n > 30 ? 1.5 : n > 15 ? 2.5 : 3.5; }
+
+function buildMainChart(){
+  const h=DATA.history,isPct=metric==="pnlPct";
+  const ctx=document.getElementById('mainChart')?.getContext('2d'); if(!ctx)return;
+  const r=dotSize(h.length);
+  destroyChart('main');
+  charts['main']=new Chart(ctx,{type:'line',
+    data:{labels:h.map(d=>d.date),datasets:[{data:h.map(d=>d[metric]),borderColor:'#3b82f6',
+      backgroundColor:'rgba(59,130,246,0.08)',borderWidth:2,pointRadius:r,pointHoverRadius:r+2,pointBackgroundColor:'#3b82f6',tension:0.3,fill:true}]},
+    options:{responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>isPct?fmtPct(c.raw):fmt(c.raw)}}},
+      scales:{x:{grid:{color:'#bfdbfe'},ticks:{color:'#94a3b8',font:{size:10},maxTicksLimit:10}},
+        y:{grid:{color:'#bfdbfe'},ticks:{color:'#94a3b8',font:{size:10},callback:v=>isPct?`${v}%`:`¥${(v/1e6).toFixed(1)}M`}}}}});
+}
+
+// ===== 月別 =====
+function renderMonthly(){
+  const months=getMonths(); if(!months.includes(monthTab))monthTab=months[0];
+  const mData=DATA.history.filter(d=>getMonth(d.date)===monthTab);
+  const mFirst=mData[0],mLast=mData[mData.length-1];
+  const prevM=DATA.history.filter(d=>parseInt(d.date)<parseInt(monthTab));
+  const prevLast=prevM[prevM.length-1];
+  const base=prevLast||mFirst;
+  const vs=base&&mLast?mLast.total-base.total:null;
+  const vsPct=base&&vs!=null?vs/base.total*100:null;
+  const mFunds=DATA.funds.map(f=>({...f,data:f.data.filter(d=>getMonth(d.date)===monthTab)}));
+  const fundCards=DATA.funds.map(f=>{
+    const md=f.data.filter(d=>getMonth(d.date)===monthTab&&d.pnlPct!=null);
+    const mf=md[0],ml=md[md.length-1],diff=mf&&ml?ml.pnlPct-mf.pnlPct:null;
+    return `<div class="fund-card" style="border-left:3px solid ${f.color}">
+      <div style="font-size:13px;font-weight:700">${f.name}</div>
+      <div class="fund-stats">
+        <div><div class="card-label">月末損益率</div><div style="font-size:16px;font-weight:800;color:${col(ml?.pnlPct)}">${fmtPct(ml?.pnlPct)}</div></div>
+        <div><div class="card-label">月内変化</div><div style="font-size:16px;font-weight:800;color:${col(diff)}">${diff!=null?(diff>=0?"+":"")+diff.toFixed(2)+"%":"—"}</div></div>
+        <div><div class="card-label">基準価額</div><div style="font-size:13px;font-weight:600;color:#64748b">${fmt(ml?.nav)}</div></div>
+      </div></div>`;
+  }).join("");
+  document.getElementById('tabContent').innerHTML=`
+    <div class="tabs">${months.map(m=>`<button class="tab${monthTab===m?" active":""}" onclick="switchMonth('${m}')">${m}</button>`).join("")}</div>
+    <div class="grid2">
+      <div class="card"><div class="card-label">${monthTab} 開始評価額</div><div style="font-size:14px;font-weight:700">${fmt(mFirst?.total)}</div></div>
+      <div class="card"><div class="card-label">${monthTab} 最終評価額</div><div style="font-size:14px;font-weight:700">${fmt(mLast?.total)}</div></div>
+      <div class="card full">
+        <div class="card-label" style="margin-bottom:8px">${prevLast?`前月末（${prevLast.date}）比`:`${monthTab}内の変化`}</div>
+        <div style="display:flex;gap:20px">
+          <div><div class="card-label">評価額変化</div><div style="font-size:19px;font-weight:800;color:${col(vs)}">${vs!=null?(vs>=0?"+":"")+fmt(Math.abs(vs)):"—"}</div></div>
+          <div><div class="card-label">変化率</div><div style="font-size:19px;font-weight:800;color:${col(vsPct)}">${fmtPct(vsPct)}</div></div>
+        </div>
+      </div>
+    </div>
+    <div class="card" style="border-radius:16px;margin-bottom:12px">
+      <div style="font-size:12px;color:#64748b;margin-bottom:8px">${monthTab} 評価額推移</div>
+      <div class="chart-wrap"><canvas id="monthChart"></canvas></div>
+    </div>
+    <div class="card" style="border-radius:16px;margin-bottom:12px">
+      <div style="font-size:12px;color:#64748b;margin-bottom:2px">${monthTab} ファンド別騰落率（月初比）</div>
+      <div style="font-size:11px;color:#94a3b8;margin-bottom:8px">月初を0%として月内の変動を表示</div>
+      <div class="chart-wrap"><canvas id="mFundsChart"></canvas></div>
+      <div class="legend">${DATA.funds.map(f=>`<div class="legend-item"><div class="legend-line" style="background:${f.color}"></div>${f.short}</div>`).join("")}</div>
+    </div>
+    ${fundCards}`;
+  buildMonthChart(mData); buildMFundsChart(mFunds);
+}
+function switchMonth(m){monthTab=m;destroyChart('month');destroyChart('mfunds');renderMonthly();}
+function buildMonthChart(mData){
+  const ctx=document.getElementById('monthChart')?.getContext('2d'); if(!ctx||mData.length<2)return;
+  const r=dotSize(mData.length);
+  destroyChart('month');
+  charts['month']=new Chart(ctx,{type:'line',
+    data:{labels:mData.map(d=>d.date),datasets:[{data:mData.map(d=>d.total),borderColor:'#3b82f6',
+      backgroundColor:'rgba(59,130,246,0.08)',borderWidth:2,pointRadius:r,pointHoverRadius:r+2,pointBackgroundColor:'#3b82f6',tension:0.3,fill:true}]},
+    options:{responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>fmt(c.raw)}}},
+      scales:{x:{grid:{color:'#bfdbfe'},ticks:{color:'#94a3b8',font:{size:10},maxTicksLimit:10}},
+        y:{grid:{color:'#bfdbfe'},ticks:{color:'#94a3b8',font:{size:10},callback:v=>`¥${(v/1e6).toFixed(2)}M`}}}}});
+}
+function buildMFundsChart(mFunds){
+  const ctx=document.getElementById('mFundsChart')?.getContext('2d'); if(!ctx)return;
+  const n=mFunds[0]?.data.length||0; const r=dotSize(n);
+  destroyChart('mfunds');
+  const labels=mFunds[0]?.data.map(d=>d.date)||[];
+  charts['mfunds']=new Chart(ctx,{type:'line',
+    data:{labels,datasets:mFunds.map(f=>{
+      const base=f.data.find(d=>d.pnlPct!=null)?.pnlPct??0;
+      return{label:f.short,borderColor:f.color,backgroundColor:'transparent',borderWidth:2,
+        pointRadius:r,pointHoverRadius:r+2,pointBackgroundColor:f.color,tension:0.3,spanGaps:true,
+        data:f.data.map(d=>d.pnlPct!=null?parseFloat((d.pnlPct-base).toFixed(2)):null)};
+    })},
+    options:{responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>`${c.dataset.label}：${fmtPct(c.raw)}`}}},
+      scales:{x:{grid:{color:'#bfdbfe'},ticks:{color:'#94a3b8',font:{size:10},maxTicksLimit:10}},
+        y:{grid:{color:'#bfdbfe'},ticks:{color:'#94a3b8',font:{size:10},callback:v=>`${v>0?"+":""}${v.toFixed(1)}%`}}}}});
+}
+
+// ===== ファンド別 =====
+function renderFunds(){
+  const months=getMonths();
+  const displayFunds=fundsView==="total"?DATA.funds:DATA.funds.map(f=>({...f,data:f.data.filter(d=>getMonth(d.date)===fundsView)}));
+  const fundCards=DATA.funds.map(f=>{
+    const v=fundsView==="total"?f.data.filter(d=>d.pnlPct!=null):f.data.filter(d=>getMonth(d.date)===fundsView&&d.pnlPct!=null);
+    const lf=v[v.length-1],ff=v[0],diff=lf&&ff?lf.pnlPct-ff.pnlPct:null;
+    return `<div class="fund-card" style="border-left:3px solid ${f.color}">
+      <div style="font-size:13px;font-weight:700">${f.name}</div>
+      <div class="fund-stats">
+        <div><div class="card-label">${fundsView==="total"?"最新":"月末"}損益率</div><div style="font-size:17px;font-weight:800;color:${col(lf?.pnlPct)}">${fmtPct(lf?.pnlPct)}</div></div>
+        <div><div class="card-label">基準価額</div><div style="font-size:14px;font-weight:700">${fmt(lf?.nav)}</div></div>
+        <div><div class="card-label">${fundsView==="total"?"期間":"月内"}変化</div><div style="font-size:14px;font-weight:700;color:${col(diff)}">${diff!=null?(diff>=0?"+":"")+diff.toFixed(2)+"%":"—"}</div></div>
+      </div></div>`;
+  }).join("");
+  document.getElementById('tabContent').innerHTML=`
+    <div class="tabs">
+      <button class="tab${fundsView==="total"?" active":""}" onclick="switchFundsView('total')">全期間</button>
+      ${months.map(m=>`<button class="tab${fundsView===m?" active":""}" onclick="switchFundsView('${m}')">${m}</button>`).join("")}
+    </div>
+    <div class="card" style="border-radius:16px;margin-bottom:12px">
+      <div style="font-size:12px;color:#64748b;margin-bottom:8px">${fundsView==="total"?"全期間":fundsView} 損益率推移（%）</div>
+      <div class="chart-wrap"><canvas id="fundsChart"></canvas></div>
+      <div class="legend">${DATA.funds.map(f=>`<div class="legend-item"><div class="legend-line" style="background:${f.color}"></div>${f.short}</div>`).join("")}</div>
+    </div>${fundCards}`;
+  buildFundsChart(displayFunds);
+}
+function switchFundsView(v){fundsView=v;destroyChart('funds');renderFunds();}
+function buildFundsChart(displayFunds){
+  const ctx=document.getElementById('fundsChart')?.getContext('2d'); if(!ctx)return;
+  const n=displayFunds[0]?.data.length||0; const r=dotSize(n);
+  destroyChart('funds');
+  const labels=displayFunds[0]?.data.map(d=>d.date)||[];
+  charts['funds']=new Chart(ctx,{type:'line',
+    data:{labels,datasets:displayFunds.map(f=>({label:f.short,data:f.data.map(d=>d.pnlPct),
+      borderColor:f.color,backgroundColor:'transparent',borderWidth:2,pointRadius:r,pointHoverRadius:r+2,
+      pointBackgroundColor:f.color,tension:0.3,spanGaps:true}))},
+    options:{responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>`${c.dataset.label}：${fmtPct(c.raw)}`}}},
+      scales:{x:{grid:{color:'#bfdbfe'},ticks:{color:'#94a3b8',font:{size:10},maxTicksLimit:10}},
+        y:{grid:{color:'#bfdbfe'},ticks:{color:'#94a3b8',font:{size:10},callback:v=>`${v}%`}}}}});
+}
+
+// ===== 月・日ピッカー =====
+const pickerState = {}; // {pid: {month, day}}
+const pickerTimers = {};
+
+function initPicker(pid, selected) {
+  const [m, d] = selected.split("/").map(Number);
+  pickerState[pid] = { month: m, day: d };
+  scrollToVal(`${pid}-m`, m);
+  scrollToVal(`${pid}-d`, d);
+}
+
+function scrollToVal(elId, val) {
+  const el = document.getElementById(elId);
+  if (!el) return;
+  const items = el.querySelectorAll('.picker-item');
+  let idx = 0;
+  items.forEach((item, i) => { if (Number(item.dataset.val) === val) idx = i; });
+  el.scrollTop = idx * 32;
+}
+
+function onPickerScroll(pid, col) {
+  clearTimeout(pickerTimers[pid+col]);
+  pickerTimers[pid+col] = setTimeout(() => {
+    const el = document.getElementById(`${pid}-${col}`);
+    if (!el) return;
+    const idx = Math.round(el.scrollTop / 32);
+    el.scrollTo({ top: idx * 32, behavior: 'smooth' });
+    const items = el.querySelectorAll('.picker-item');
+    items.forEach((item, i) => item.classList.toggle('active', i === idx));
+    const val = Number(items[idx]?.dataset.val);
+    if (!val) return;
+
+    const h = DATA.history;
+    const dateList = h.map(d => d.date);
+    const allMonths = [...new Set(dateList.map(d => parseInt(d.split("/")[0])))].sort((a,b)=>a-b);
+
+    if (col === 'm') {
+      pickerState[pid].month = val;
+      // 日リストを更新
+      const availDays = dateList.filter(d=>parseInt(d.split("/")[0])===val).map(d=>parseInt(d.split("/")[1])).sort((a,b)=>a-b);
+      const dayEl = document.getElementById(`${pid}-d`);
+      if (dayEl) {
+        const pad = '<div class="picker-pad"></div>';
+        const overlays = '<div class="picker-overlay-t"></div><div class="picker-overlay-b"></div><div class="picker-line"></div>';
+        dayEl.innerHTML = pad + availDays.map(d=>`<div class="picker-item" data-val="${d}">${d}日</div>`).join("") + pad + overlays;
+        // 同じ日か最初の日を選択
+        const curDay = pickerState[pid].day;
+        const newDay = availDays.includes(curDay) ? curDay : availDays[0];
+        pickerState[pid].day = newDay;
+        setTimeout(() => scrollToVal(`${pid}-d`, newDay), 10);
+        dayEl.querySelectorAll('.picker-item').forEach(item => {
+          item.classList.toggle('active', Number(item.dataset.val) === newDay);
+        });
+      }
+    } else {
+      pickerState[pid].day = val;
+    }
+
+    const { month, day } = pickerState[pid];
+    const newDate = `${month}/${day}`;
+    // ラベル更新
+    const labelEl = document.getElementById(`${pid}-label`);
+    if (labelEl) labelEl.textContent = newDate;
+
+    if (dateList.includes(newDate)) {
+      if (pid === 'ps') rangeStart = newDate;
+      else rangeEnd = newDate;
+      // 数値部分だけ更新
+      updateRangeResult();
+    }
+  }, 150);
+}
+
+function updateRangeResult() {
+  const h = DATA.history;
+  const rsData = h.find(d=>d.date===rangeStart);
+  const reData = h.find(d=>d.date===rangeEnd);
+  const rChange = rsData&&reData ? reData.total-rsData.total : null;
+  const rPct = rsData&&rChange!=null ? rChange/rsData.total*100 : null;
+  const el = document.getElementById('rangeResult');
+  if (!el) return;
+  el.innerHTML = rChange!=null ? `
+    <div style="display:flex;gap:20px;flex-wrap:wrap">
+      <div><div class="card-label">評価額変化</div><div style="font-size:18px;font-weight:800;color:${col(rChange)}">${rChange>=0?"+":""}${fmt(Math.abs(rChange))}</div></div>
+      <div><div class="card-label">変化率</div><div style="font-size:18px;font-weight:800;color:${col(rPct)}">${fmtPct(rPct)}</div></div>
+      <div><div class="card-label">開始時評価額</div><div style="font-size:13px;font-weight:600;color:#64748b">${fmt(rsData?.total)}</div></div>
+    </div>` : '<div style="font-size:12px;color:#94a3b8">データにない日付の組み合わせです</div>';
+}
+
+function render(){renderSummary();renderTabs();renderContent();}
+</script>
+</body>
+</html>
