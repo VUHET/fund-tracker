@@ -440,17 +440,51 @@ function dotSize(n){ return n > 60 ? 0 : n > 30 ? 1.5 : n > 15 ? 2.5 : 3.5; }
 
 function buildMainChart(){
   const h = totalMonthTab === "all" ? DATA.history : DATA.history.filter(d => getMonth(d.date) === totalMonthTab);
-  const isPct=metric==="pnlPct";
-  const ctx=document.getElementById('mainChart')?.getContext('2d'); if(!ctx)return;
-  const r=dotSize(h.length);
+  const isPct = metric === "pnlPct";
+  const showCost = metric === "total"; // 評価額表示のときだけ元本を表示
+  const ctx = document.getElementById('mainChart')?.getContext('2d'); if(!ctx)return;
+  const r = dotSize(h.length);
   destroyChart('main');
-  charts['main']=new Chart(ctx,{type:'line',
-    data:{labels:h.map(d=>d.date),datasets:[{data:h.map(d=>d[metric]),borderColor:'#3b82f6',
-      backgroundColor:'rgba(59,130,246,0.08)',borderWidth:2,pointRadius:r,pointHoverRadius:r+2,pointBackgroundColor:'#3b82f6',tension:0.3,fill:true}]},
-    options:{responsive:true,maintainAspectRatio:false,
-      plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>isPct?fmtPct(c.raw):fmt(c.raw)}}},
-      scales:{x:{grid:{color:'#bfdbfe'},ticks:{color:'#94a3b8',font:{size:10},maxTicksLimit:10}},
-        y:{grid:{color:'#bfdbfe'},ticks:{color:'#94a3b8',font:{size:10},callback:v=>isPct?`${v}%`:`¥${(v/1e6).toFixed(1)}M`}}}}});
+
+  const datasets = [{
+    label: "評価額",
+    data: h.map(d => d[metric]),
+    borderColor: '#3b82f6',
+    backgroundColor: 'rgba(59,130,246,0.08)',
+    borderWidth: 2,
+    pointRadius: r, pointHoverRadius: r+2,
+    pointBackgroundColor: '#3b82f6',
+    tension: 0.3, fill: true, order: 1,
+  }];
+
+  if (showCost) {
+    datasets.push({
+      label: "投資元本",
+      data: h.map(d => (d.total != null && d.pnl != null) ? d.total - d.pnl : null),
+      borderColor: '#94a3b8',
+      backgroundColor: 'transparent',
+      borderWidth: 1.5,
+      borderDash: [4, 4],
+      pointRadius: 0,
+      tension: 0.3, fill: false, order: 2,
+      spanGaps: true,
+    });
+  }
+
+  charts['main'] = new Chart(ctx, {type:'line',
+    data: { labels: h.map(d=>d.date), datasets },
+    options: { responsive:true, maintainAspectRatio:false,
+      plugins: {
+        legend: { display: showCost, labels: { color:'#64748b', font:{size:11}, boxWidth:20, padding:12 }},
+        tooltip: { callbacks: { label: c => `${c.dataset.label}：${isPct?fmtPct(c.raw):fmt(c.raw)}` }}
+      },
+      scales: {
+        x: { grid:{color:'#bfdbfe'}, ticks:{color:'#94a3b8',font:{size:10},maxTicksLimit:10} },
+        y: { grid:{color:'#bfdbfe'}, ticks:{color:'#94a3b8',font:{size:10},
+          callback: v => isPct ? `${v}%` : `¥${(v/1e6).toFixed(1)}M`}}
+      }
+    }
+  });
 }
 
 // ===== 月別 =====
