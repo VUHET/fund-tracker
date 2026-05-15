@@ -232,7 +232,7 @@ const col = v => v==null?"#94a3b8":v>=0?"#0d9488":"#e11d48";
 const getMonth = d => d.split("/")[0]+"月";
 const parseDate = d => { const [m,day]=d.split("/"); return new Date(2026,parseInt(m)-1,parseInt(day)); };
 
-let mainTab="total", monthTab="", totalMonthTab="all", fundsView="total", metric="total", monthSortOrder="none", rangeStart="", rangeEnd="", charts={};
+let mainTab="total", monthTab="", totalMonthTab="all", fundsView="total", metric="total", monthSortOrder="none", dayChangeMode="pct", rangeStart="", rangeEnd="", charts={};
 function getMonths(){return[...new Set(DATA.history.map(d=>getMonth(d.date)))];}
 
 function init() {
@@ -390,24 +390,25 @@ function renderContent(){
 function renderTotal(){
   const h = DATA.history;
   const months = [...new Set(h.map(d => getMonth(d.date)))];
-
-  // 表示対象を絞る
   const filtered = totalMonthTab === "all" ? h : h.filter(d => getMonth(d.date) === totalMonthTab);
 
-  // 前日比を計算（全データから）
-  const rows = [...filtered].reverse().map((d, i, arr) => {
-    const prevD = arr[i + 1]; // reverseしてるので次が前日
+  const rows = [...filtered].reverse().map((d) => {
     const globalIdx = h.findIndex(x => x.date === d.date);
     const prevGlobal = globalIdx > 0 ? h[globalIdx - 1] : null;
-    const dayChange = prevGlobal && d.total && prevGlobal.total
-      ? ((d.total - prevGlobal.total) / prevGlobal.total * 100)
-      : null;
+    const dayChangePct = prevGlobal && d.total && prevGlobal.total
+      ? ((d.total - prevGlobal.total) / prevGlobal.total * 100) : null;
+    const dayChangeAmt = prevGlobal && d.total && prevGlobal.total
+      ? (d.total - prevGlobal.total) : null;
+    const dayChangeVal = dayChangeMode === "pct" ? dayChangePct : dayChangeAmt;
+    const dayChangeStr = dayChangeMode === "pct"
+      ? (dayChangePct!=null ? (dayChangePct>=0?"+":"")+dayChangePct.toFixed(2)+"%" : "—")
+      : (dayChangeAmt!=null ? fmtSigned(dayChangeAmt) : "—");
     return `<tr>
       <td style="color:#64748b">${d.date}</td>
       <td style="font-weight:600;color:#1e293b">${fmt(d.total)}</td>
       <td style="font-weight:600;color:${col(d.pnl)}">${fmtSigned(d.pnl)}</td>
       <td style="font-weight:700;color:${col(d.pnlPct)}">${fmtPct(d.pnlPct)}</td>
-      <td style="font-weight:600;color:${col(dayChange)}">${dayChange!=null?(dayChange>=0?"+":"")+dayChange.toFixed(2)+"%":"—"}</td>
+      <td style="font-weight:600;color:${col(dayChangeVal)}">${dayChangeStr}</td>
     </tr>`;
   }).join("");
 
@@ -423,7 +424,12 @@ function renderTotal(){
         <button class="tab${totalMonthTab==="all"?" active":""}" onclick="switchTotalMonth('all')">全期間</button>
         ${months.map(m=>`<button class="tab${totalMonthTab===m?" active":""}" onclick="switchTotalMonth('${m}')">${m}</button>`).join("")}
       </div>
-      <table style="margin-top:8px">
+      <div style="display:flex;align-items:center;justify-content:flex-end;gap:6px;margin-top:10px">
+        <span style="font-size:11px;color:#94a3b8">前日比：</span>
+        <button class="mbtn${dayChangeMode==='pct'?' active':''}" onclick="switchDayChangeMode('pct')">％</button>
+        <button class="mbtn${dayChangeMode==='amt'?' active':''}" onclick="switchDayChangeMode('amt')">金額</button>
+      </div>
+      <table style="margin-top:6px">
         <thead><tr>
           <th>日付</th><th>評価額</th><th>含み損益</th><th>損益率</th><th>前日比</th>
         </tr></thead>
@@ -434,6 +440,7 @@ function renderTotal(){
 }
 function switchMetric(m){metric=m;destroyChart('main');renderTotal();}
 function switchTotalMonth(m){totalMonthTab=m;destroyChart('main');renderTotal();}
+function switchDayChangeMode(m){dayChangeMode=m;renderTotal();}
 
 // データ数に応じてドットサイズを自動調整
 function dotSize(n){ return n > 60 ? 0 : n > 30 ? 1.5 : n > 15 ? 2.5 : 3.5; }
