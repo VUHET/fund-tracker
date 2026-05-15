@@ -232,7 +232,7 @@ const col = v => v==null?"#94a3b8":v>=0?"#0d9488":"#e11d48";
 const getMonth = d => d.split("/")[0]+"月";
 const parseDate = d => { const [m,day]=d.split("/"); return new Date(2026,parseInt(m)-1,parseInt(day)); };
 
-let mainTab="total", monthTab="", totalMonthTab="all", fundsView="total", metric="total", rangeStart="", rangeEnd="", charts={};
+let mainTab="total", monthTab="", totalMonthTab="all", fundsView="total", metric="total", monthSortOrder="none", rangeStart="", rangeEnd="", charts={};
 function getMonths(){return[...new Set(DATA.history.map(d=>getMonth(d.date)))];}
 
 function init() {
@@ -498,9 +498,17 @@ function renderMonthly(){
   const vs=base&&mLast?mLast.total-base.total:null;
   const vsPct=base&&vs!=null?vs/base.total*100:null;
   const mFunds=DATA.funds.map(f=>({...f,data:f.data.filter(d=>getMonth(d.date)===monthTab)}));
-  const fundCards=DATA.funds.map(f=>{
+
+  // ソート処理
+  const fundList = DATA.funds.map(f=>{
     const md=f.data.filter(d=>getMonth(d.date)===monthTab&&d.pnlPct!=null);
     const mf=md[0],ml=md[md.length-1],diff=mf&&ml?ml.pnlPct-mf.pnlPct:null;
+    return {f, md, mf, ml, diff};
+  });
+  if (monthSortOrder==="desc") fundList.sort((a,b)=>(b.ml?.pnlPct??-999)-(a.ml?.pnlPct??-999));
+  else if (monthSortOrder==="asc") fundList.sort((a,b)=>(a.ml?.pnlPct??999)-(b.ml?.pnlPct??999));
+
+  const fundCards=fundList.map(({f,ml,diff})=>{
     return `<div class="fund-card" style="border-left:3px solid ${f.color}">
       <div style="font-size:13px;font-weight:700">${f.name}</div>
       <div class="fund-stats">
@@ -532,10 +540,19 @@ function renderMonthly(){
       <div class="chart-wrap"><canvas id="mFundsChart"></canvas></div>
       <div class="legend">${DATA.funds.map(f=>`<div class="legend-item"><div class="legend-line" style="background:${f.color}"></div>${f.short}</div>`).join("")}</div>
     </div>
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+      <div style="font-size:12px;color:#64748b;font-weight:600">ファンド別</div>
+      <div style="display:flex;gap:6px">
+        <button class="mbtn${monthSortOrder==='none'?' active':''}" onclick="switchMonthSort('none')">デフォルト</button>
+        <button class="mbtn${monthSortOrder==='desc'?' active':''}" onclick="switchMonthSort('desc')">高い順▼</button>
+        <button class="mbtn${monthSortOrder==='asc'?' active':''}" onclick="switchMonthSort('asc')">低い順▲</button>
+      </div>
+    </div>
     ${fundCards}`;
   buildMonthChart(mData); buildMFundsChart(mFunds);
 }
 function switchMonth(m){monthTab=m;destroyChart('month');destroyChart('mfunds');renderMonthly();}
+function switchMonthSort(order){monthSortOrder=order;renderMonthly();}
 function buildMonthChart(mData){
   const ctx=document.getElementById('monthChart')?.getContext('2d'); if(!ctx||mData.length<2)return;
   const r=dotSize(mData.length);
