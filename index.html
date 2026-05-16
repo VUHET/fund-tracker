@@ -522,6 +522,7 @@ function renderMonthly(){
         <div><div class="card-label">月末損益率</div><div style="font-size:16px;font-weight:800;color:${col(ml?.pnlPct)}">${fmtPct(ml?.pnlPct)}</div></div>
         <div><div class="card-label">月内変化</div><div style="font-size:16px;font-weight:800;color:${col(diff)}">${diff!=null?(diff>=0?"+":"")+diff.toFixed(2)+"%":"—"}</div></div>
         <div><div class="card-label">基準価額</div><div style="font-size:13px;font-weight:600;color:#64748b">${fmt(ml?.nav)}</div></div>
+        ${f.units&&f.cost_nav&&ml?.nav?`<div><div class="card-label">含み益</div><div style="font-size:13px;font-weight:700;color:${col(Math.round(f.units*ml.nav/10000)-Math.round(f.units*f.cost_nav/10000))}">${fmtSigned(Math.round(f.units*ml.nav/10000)-Math.round(f.units*f.cost_nav/10000))}</div></div>`:""}
       </div></div>`;
   }).join("");
   document.getElementById('tabContent').innerHTML=`
@@ -603,6 +604,7 @@ function renderFunds(){
         <div><div class="card-label">${fundsView==="total"?"最新":"月末"}損益率</div><div style="font-size:17px;font-weight:800;color:${col(lf?.pnlPct)}">${fmtPct(lf?.pnlPct)}</div></div>
         <div><div class="card-label">基準価額</div><div style="font-size:14px;font-weight:700">${fmt(lf?.nav)}</div></div>
         <div><div class="card-label">${fundsView==="total"?"期間":"月内"}変化</div><div style="font-size:14px;font-weight:700;color:${col(diff)}">${diff!=null?(diff>=0?"+":"")+diff.toFixed(2)+"%":"—"}</div></div>
+        ${f.units&&f.cost_nav&&lf?.nav?`<div><div class="card-label">含み益</div><div style="font-size:14px;font-weight:700;color:${col(Math.round(f.units*lf.nav/10000)-Math.round(f.units*f.cost_nav/10000))}">${fmtSigned(Math.round(f.units*lf.nav/10000)-Math.round(f.units*f.cost_nav/10000))}</div></div>`:""}
       </div></div>`;
   }).join("");
   document.getElementById('tabContent').innerHTML=`
