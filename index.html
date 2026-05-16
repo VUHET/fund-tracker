@@ -83,21 +83,11 @@ td{padding:7px 8px;text-align:right;border-bottom:1px solid #eff6ff;}
 .legend{display:flex;flex-wrap:wrap;gap:8px 14px;margin-top:10px;}
 .legend-item{display:flex;align-items:center;gap:5px;font-size:11px;color:#64748b;}
 .legend-line{width:12px;height:3px;border-radius:2px;}
-/* 月・日ピッカー */
-.picker-wrap{flex:1;background:#f8faff;border:1px solid #bfdbfe;border-radius:12px;padding:8px 6px;display:flex;flex-direction:column;gap:4px;}
-.picker-label{font-size:10px;color:#94a3b8;text-align:center;font-weight:600;}
-.picker-selected{font-size:15px;font-weight:800;color:#1e40af;text-align:center;margin-bottom:4px;}
-.picker-row{display:flex;gap:4px;}
-.picker-col{flex:1;display:flex;flex-direction:column;gap:2px;}
-.picker-col-label{font-size:10px;color:#94a3b8;text-align:center;}
-.picker-scroll{height:88px;overflow-y:scroll;scroll-snap-type:y mandatory;-webkit-overflow-scrolling:touch;scrollbar-width:none;border-radius:8px;background:#fff;border:1px solid #bfdbfe;position:relative;}
-.picker-scroll::-webkit-scrollbar{display:none;}
-.picker-item{height:32px;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:600;color:#94a3b8;scroll-snap-align:center;}
-.picker-item.active{color:#1e40af;font-weight:800;font-size:14px;}
-.picker-pad{height:28px;flex-shrink:0;}
-.picker-overlay-t{position:absolute;top:0;left:0;right:0;height:28px;background:linear-gradient(to bottom,rgba(255,255,255,0.9),transparent);pointer-events:none;}
-.picker-overlay-b{position:absolute;bottom:0;left:0;right:0;height:28px;background:linear-gradient(to top,rgba(255,255,255,0.9),transparent);pointer-events:none;}
-.picker-line{position:absolute;top:50%;left:4px;right:4px;height:32px;margin-top:-16px;border-top:1.5px solid #bfdbfe;border-bottom:1.5px solid #bfdbfe;pointer-events:none;border-radius:4px;}
+select{background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;color:#1e40af;padding:6px 8px;font-size:13px;cursor:pointer;font-weight:600;}
+.date-picker{display:flex;flex-direction:column;gap:6px;flex:1;}
+.date-picker-label{font-size:10px;color:#94a3b8;font-weight:600;}
+.date-picker-selects{display:flex;gap:4px;}
+.date-picker-selects select{flex:1;}
 
 /* データ更新モーダル */
 .modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.4);z-index:100;align-items:center;justify-content:center;padding:16px;}
@@ -331,34 +321,18 @@ function renderSummary(){
     return dateList.filter(d=>parseInt(d.split("/")[0])===month).map(d=>parseInt(d.split("/")[1])).sort((a,b)=>a-b);
   }
 
-  function pickerHtml(pid, selected) {
+  function datePickerHtml(pid, selected) {
     const [sm, sd] = selected.split("/").map(Number);
     const availDays = getAvailableDays(sm);
-    return `<div class="picker-wrap">
-      <div class="picker-selected" id="${pid}-label">${selected}</div>
-      <div class="picker-row">
-        <div class="picker-col">
-          <div class="picker-col-label">月</div>
-          <div class="picker-scroll" id="${pid}-m" onscroll="onPickerScroll('${pid}','m')">
-            <div class="picker-pad"></div>
-            ${months.map(m=>`<div class="picker-item${m===sm?" active":""}" data-val="${m}">${m}月</div>`).join("")}
-            <div class="picker-pad"></div>
-            <div class="picker-overlay-t"></div>
-            <div class="picker-overlay-b"></div>
-            <div class="picker-line"></div>
-          </div>
-        </div>
-        <div class="picker-col">
-          <div class="picker-col-label">日</div>
-          <div class="picker-scroll" id="${pid}-d" onscroll="onPickerScroll('${pid}','d')">
-            <div class="picker-pad"></div>
-            ${availDays.map(d=>`<div class="picker-item${d===sd?" active":""}" data-val="${d}">${d}日</div>`).join("")}
-            <div class="picker-pad"></div>
-            <div class="picker-overlay-t"></div>
-            <div class="picker-overlay-b"></div>
-            <div class="picker-line"></div>
-          </div>
-        </div>
+    return `<div class="date-picker">
+      <div class="date-picker-label">${pid==="ps"?"開始日":"終了日"}</div>
+      <div class="date-picker-selects">
+        <select onchange="onPickerChange('${pid}','m',this.value)">
+          ${months.map(m=>`<option value="${m}"${m===sm?" selected":""}>${m}月</option>`).join("")}
+        </select>
+        <select id="${pid}-d" onchange="onPickerChange('${pid}','d',this.value)">
+          ${availDays.map(d=>`<option value="${d}"${d===sd?" selected":""}>${d}日</option>`).join("")}
+        </select>
       </div>
     </div>`;
   }
@@ -376,9 +350,9 @@ function renderSummary(){
     <div class="card full">
       <div class="card-label" style="font-weight:600;margin-bottom:10px">📅 期間変化（日付指定）</div>
       <div style="display:flex;gap:10px;align-items:center;margin-bottom:12px">
-        ${pickerHtml("ps", rangeStart)}
-        <div style="color:#94a3b8;font-size:18px;flex-shrink:0">→</div>
-        ${pickerHtml("pe", rangeEnd)}
+        ${datePickerHtml("ps", rangeStart)}
+        <div style="color:#94a3b8;font-size:18px;flex-shrink:0;padding-top:20px">→</div>
+        ${datePickerHtml("pe", rangeEnd)}
       </div>
       <div id="rangeResult">
       ${rChange!=null?`<div style="display:flex;gap:20px;flex-wrap:wrap">
@@ -409,10 +383,7 @@ function renderSummary(){
     </div>`;
 
   // ドラムロール初期化
-  setTimeout(() => {
-    initPicker("ps", rangeStart);
-    initPicker("pe", rangeEnd);
-  }, 50);
+  updateRangeResult();
 }
 
 // ===== タブ =====
@@ -676,77 +647,33 @@ function buildFundsChart(displayFunds){
         y:{grid:{color:'#bfdbfe'},ticks:{color:'#94a3b8',font:{size:10},callback:v=>`${v}%`}}}}});
 }
 
-// ===== 月・日ピッカー =====
-const pickerState = {}; // {pid: {month, day}}
-const pickerTimers = {};
+// ===== 月・日ドロップダウン =====
+function onPickerChange(pid, col, val) {
+  const h = DATA.history;
+  const dateList = h.map(d=>d.date);
+  const months = [...new Set(dateList.map(d=>d.split("/")[0]))].map(Number).sort((a,b)=>a-b);
 
-function initPicker(pid, selected) {
-  const [m, d] = selected.split("/").map(Number);
-  pickerState[pid] = { month: m, day: d };
-  scrollToVal(`${pid}-m`, m);
-  scrollToVal(`${pid}-d`, d);
-}
+  let current = pid === "ps" ? rangeStart : rangeEnd;
+  let [cm, cd] = current.split("/").map(Number);
 
-function scrollToVal(elId, val) {
-  const el = document.getElementById(elId);
-  if (!el) return;
-  const items = el.querySelectorAll('.picker-item');
-  let idx = 0;
-  items.forEach((item, i) => { if (Number(item.dataset.val) === val) idx = i; });
-  el.scrollTop = idx * 32;
-}
-
-function onPickerScroll(pid, col) {
-  clearTimeout(pickerTimers[pid+col]);
-  pickerTimers[pid+col] = setTimeout(() => {
-    const el = document.getElementById(`${pid}-${col}`);
-    if (!el) return;
-    const idx = Math.round(el.scrollTop / 32);
-    el.scrollTo({ top: idx * 32, behavior: 'smooth' });
-    const items = el.querySelectorAll('.picker-item');
-    items.forEach((item, i) => item.classList.toggle('active', i === idx));
-    const val = Number(items[idx]?.dataset.val);
-    if (!val) return;
-
-    const h = DATA.history;
-    const dateList = h.map(d => d.date);
-    const allMonths = [...new Set(dateList.map(d => parseInt(d.split("/")[0])))].sort((a,b)=>a-b);
-
-    if (col === 'm') {
-      pickerState[pid].month = val;
-      // 日リストを更新
-      const availDays = dateList.filter(d=>parseInt(d.split("/")[0])===val).map(d=>parseInt(d.split("/")[1])).sort((a,b)=>a-b);
-      const dayEl = document.getElementById(`${pid}-d`);
-      if (dayEl) {
-        const pad = '<div class="picker-pad"></div>';
-        const overlays = '<div class="picker-overlay-t"></div><div class="picker-overlay-b"></div><div class="picker-line"></div>';
-        dayEl.innerHTML = pad + availDays.map(d=>`<div class="picker-item" data-val="${d}">${d}日</div>`).join("") + pad + overlays;
-        // 同じ日か最初の日を選択
-        const curDay = pickerState[pid].day;
-        const newDay = availDays.includes(curDay) ? curDay : availDays[0];
-        pickerState[pid].day = newDay;
-        setTimeout(() => scrollToVal(`${pid}-d`, newDay), 10);
-        dayEl.querySelectorAll('.picker-item').forEach(item => {
-          item.classList.toggle('active', Number(item.dataset.val) === newDay);
-        });
-      }
-    } else {
-      pickerState[pid].day = val;
+  if (col === "m") {
+    cm = parseInt(val);
+    // その月の日リストを更新
+    const availDays = dateList.filter(d=>parseInt(d.split("/")[0])===cm).map(d=>parseInt(d.split("/")[1])).sort((a,b)=>a-b);
+    const dayEl = document.getElementById(`${pid}-d`);
+    if (dayEl) {
+      dayEl.innerHTML = availDays.map(d=>`<option value="${d}">${d}日</option>`).join("");
+      cd = availDays.includes(cd) ? cd : availDays[0];
+      dayEl.value = cd;
     }
+  } else {
+    cd = parseInt(val);
+  }
 
-    const { month, day } = pickerState[pid];
-    const newDate = `${month}/${day}`;
-    // ラベル更新
-    const labelEl = document.getElementById(`${pid}-label`);
-    if (labelEl) labelEl.textContent = newDate;
-
-    if (dateList.includes(newDate)) {
-      if (pid === 'ps') rangeStart = newDate;
-      else rangeEnd = newDate;
-      // 数値部分だけ更新
-      updateRangeResult();
-    }
-  }, 150);
+  const newDate = `${cm}/${cd}`;
+  if (pid === "ps") rangeStart = newDate;
+  else rangeEnd = newDate;
+  updateRangeResult();
 }
 
 function updateRangeResult() {
