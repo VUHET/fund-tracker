@@ -126,8 +126,8 @@ td{padding:7px 8px;text-align:right;border-bottom:1px solid #eff6ff;}
   <div class="lock-card">
     <h2>📋 データを貼り付けて開始</h2>
     <p>Claudeから受け取ったJSONを貼り付けてください。データはこのブラウザにのみ保存され、URLからは見えません。</p>
-    <textarea id="lockJsonInput" placeholder='{"history":[...],"funds":[]}'></textarea>
-    <button class="lock-btn" onclick="unlockWithJson()">データを読み込む</button>
+    <button class="lock-btn" onclick="document.getElementById('lockFileInput').click()">📂 JSONファイルを選択</button>
+    <input type="file" id="lockFileInput" accept=".json" style="display:none" onchange="unlockWithFile(this)">
     <div id="lockErr"></div>
   </div>
 </div>
@@ -137,7 +137,9 @@ td{padding:7px 8px;text-align:right;border-bottom:1px solid #eff6ff;}
   <div class="modal-overlay" id="modal">
     <div class="modal">
       <h2>📋 データを更新する</h2>
-      <p style="font-size:12px;color:#64748b;margin-bottom:12px">Claudeから受け取ったJSONを貼り付けてください。</p>
+      <p style="font-size:12px;color:#64748b;margin-bottom:12px">JSONファイルを選択するか、テキストを貼り付けてください。</p>
+      <button class="btn btn-secondary" style="width:100%;margin-bottom:8px" onclick="document.getElementById('modalFileInput').click()">📂 JSONファイルを選択</button>
+      <input type="file" id="modalFileInput" accept=".json" style="display:none" onchange="importFile(this)">
       <textarea id="jsonInput" placeholder='{"history":[...],"funds":[]}'></textarea>
       <div id="modalMsg"></div>
       <div class="modal-btns">
@@ -189,6 +191,45 @@ function clearSession() {
 }
 
 // ===== ロック画面 =====
+function unlockWithFile(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const errEl = document.getElementById('lockErr');
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      const parsed = JSON.parse(e.target.result);
+      if (!parsed.history || !parsed.funds) throw new Error('historyとfundsが必要です');
+      DATA = parsed;
+      saveToSession(DATA);
+      showApp();
+    } catch(err) {
+      errEl.innerHTML = `<div class="lock-err">❌ エラー：${err.message}</div>`;
+    }
+  };
+  reader.readAsText(file);
+}
+
+function importFile(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const msgEl = document.getElementById('modalMsg');
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      const parsed = JSON.parse(e.target.result);
+      if (!parsed.history || !parsed.funds) throw new Error('historyとfundsが必要です');
+      DATA = parsed;
+      saveToSession(DATA);
+      msgEl.innerHTML = '<div class="msg ok">✅ 更新しました！</div>';
+      setTimeout(() => { closeModal(); init(); }, 800);
+    } catch(err) {
+      msgEl.innerHTML = `<div class="msg err">❌ エラー：${err.message}</div>`;
+    }
+  };
+  reader.readAsText(file);
+}
+
 function unlockWithJson() {
   const txt = document.getElementById('lockJsonInput').value.trim();
   const errEl = document.getElementById('lockErr');
