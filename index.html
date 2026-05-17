@@ -438,34 +438,40 @@ function renderSummary(){
             </tr>
           </thead>
           <tbody>
-            ${DATA.funds.map(f => {
-              const flast = f.data.filter(d=>d.pnlPct!=null).slice(-1)[0];
-              const ffirst = f.data.filter(d=>d.pnlPct!=null)[0];
-              if (!flast || !ffirst || !f.units || !f.cost_nav || !flast.nav) return "";
+        ${DATA.funds.map(f => {
+              const fvalid = f.data.filter(d=>d.pnlPct!=null);
+              const flast = fvalid[fvalid.length-1];
+              const ffirst = fvalid[0];
+              if (!flast || !ffirst || !f.units || !f.cost_nav) return "";
               const fDays = Math.max(1, Math.round((parseDate(flast.date)-parseDate(ffirst.date))/86400000));
-              const fTotalReturn = (flast.nav - ffirst.nav) / ffirst.nav;
+              // pnlPctから各時点の相対価値を計算
+              // nav = cost_nav × (1 + pnlPct/100)
+              const firstNav = f.cost_nav * (1 + ffirst.pnlPct/100);
+              const lastNav  = f.cost_nav * (1 + flast.pnlPct/100);
+              const fTotalReturn = (lastNav - firstNav) / firstNav;
               let fRate;
               if (returnMethod === "cagr") {
                 fRate = ((1 + fTotalReturn) ** (365/fDays) - 1) * 100;
               } else if (returnMethod === "ma") {
-                const fData = f.data.filter(d=>d.pnlPct!=null);
                 const getR = (days) => {
-                  const base = fData[Math.max(0, fData.length-1-days)];
-                  if (!base?.nav || !flast?.nav) return null;
-                  const r = (flast.nav - base.nav) / base.nav;
+                  const base = fvalid[Math.max(0, fvalid.length-1-days)];
+                  if (!base) return null;
+                  const baseNav = f.cost_nav * (1 + base.pnlPct/100);
+                  const r = (lastNav - baseNav) / baseNav;
                   const d2 = Math.max(1, Math.round((parseDate(flast.date)-parseDate(base.date))/86400000));
                   return ((1+r)**(365/d2)-1)*100;
                 };
                 const rs = [getR(30),getR(60),getR(90)].filter(r=>r!=null);
-                fRate = rs.length===3 ? rs[0]*0.5+rs[1]*0.3+rs[2]*0.2 : rs.reduce((a,b)=>a+b,0)/rs.length;
+                fRate = rs.length===3 ? rs[0]*0.5+rs[1]*0.3+rs[2]*0.2 : rs.length>0 ? rs.reduce((a,b)=>a+b,0)/rs.length : 0;
               } else {
-                const fNavs = f.data.filter(d=>d.nav!=null).map(d=>d.nav);
-                const fDailyR = fNavs.slice(1).map((n,i)=>(n-fNavs[i])/fNavs[i]);
+                // ボラ調整：pnlPctから日次リターンを計算
+                const navSeries = fvalid.map(d => f.cost_nav * (1 + d.pnlPct/100));
+                const fDailyR = navSeries.slice(1).map((n,i)=>(n-navSeries[i])/navSeries[i]);
                 const fMean = fDailyR.reduce((a,b)=>a+b,0)/fDailyR.length;
                 const fVar = fDailyR.reduce((a,b)=>a+(b-fMean)**2,0)/fDailyR.length;
                 fRate = (fMean - 0.5*fVar)*365*100;
               }
-              const evalNow = Math.round(f.units * flast.nav / 10000);
+              const evalNow = Math.round(f.units * lastNav / 10000);
               const fYearEnd = Math.round(evalNow * (1+fRate/100)**(daysToYearEnd/365));
               const f1y = Math.round(evalNow * (1+fRate/100));
               return `<tr style="border-bottom:1px solid rgba(196,181,253,0.3)">
