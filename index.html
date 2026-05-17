@@ -654,6 +654,7 @@ function renderMonthly(){
 function switchMonth(m){monthTab=m;destroyChart('month');destroyChart('mfunds');renderMonthly();}
 function switchReturnMethod(m){returnMethod=m;renderSummary();}
 function switchMonthSort(order){monthSortOrder=order;renderMonthly();}
+function switchFundsSort(order){monthSortOrder=order;renderFunds();}
 function buildMonthChart(mData){
   const ctx=document.getElementById('monthChart')?.getContext('2d'); if(!ctx||mData.length<2)return;
   const r=dotSize(mData.length);
@@ -736,9 +737,9 @@ function renderFunds(){
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
       <div style="font-size:12px;color:#64748b;font-weight:600">ファンド別</div>
       <div style="display:flex;gap:6px">
-        <button class="mbtn${monthSortOrder==='none'?' active':''}" onclick="switchMonthSort('none')">デフォルト</button>
-        <button class="mbtn${monthSortOrder==='desc'?' active':''}" onclick="switchMonthSort('desc')">高い順▼</button>
-        <button class="mbtn${monthSortOrder==='asc'?' active':''}" onclick="switchMonthSort('asc')">低い順▲</button>
+        <button class="mbtn${monthSortOrder==='none'?' active':''}" onclick="switchFundsSort('none')">デフォルト</button>
+        <button class="mbtn${monthSortOrder==='desc'?' active':''}" onclick="switchFundsSort('desc')">高い順▼</button>
+        <button class="mbtn${monthSortOrder==='asc'?' active':''}" onclick="switchFundsSort('asc')">低い順▲</button>
       </div>
     </div>
     ${fundCards}`;
