@@ -263,7 +263,7 @@ const col = v => v==null?"#94a3b8":v>=0?"#0d9488":"#e11d48";
 const getMonth = d => d.split("/")[0]+"月";
 const parseDate = d => { const [m,day]=d.split("/"); return new Date(2026,parseInt(m)-1,parseInt(day)); };
 
-let mainTab="total", monthTab="", totalMonthTab="all", fundsView="total", metric="total", monthSortOrder="none", dayChangeMode="pct", rangeStart="", rangeEnd="", charts={};
+let mainTab="total", monthTab="", totalMonthTab="all", fundsView="total", metric="total", monthSortOrder="none", dayChangeMode="pct", returnMethod="cagr", rangeStart="", rangeEnd="", charts={};
 function getMonths(){return[...new Set(DATA.history.map(d=>getMonth(d.date)))];}
 
 function init() {
@@ -300,16 +300,52 @@ function destroyChart(id){if(charts[id]){charts[id].destroy();delete charts[id];
 // ===== サマリー =====
 function renderSummary(){
   const h=DATA.history,latest=h[h.length-1],first=h[0];
-  const daysDiff=Math.max(1,Math.round((parseDate(latest.date)-parseDate(first.date))/86400000));
-  const totalReturn=(latest.total-first.total)/first.total;
-  const annualReturn=((1+totalReturn/daysDiff)**365-1)*100;
-  const projected=Math.round(latest.total*(1+annualReturn/100));
-  // 年末予測（12/31まで残り日数から計算）
+  const daysDiff = Math.max(1, Math.round((parseDate(latest.date)-parseDate(first.date))/86400000));
+  const totalReturn = (latest.total - first.total) / first.total;
+
+  // ① CAGR（複利年率成長率）
+  const cagr = ((1 + totalReturn) ** (365 / daysDiff) - 1) * 100;
+
+  // ② 移動平均ベース（直近30・60・90日の加重平均）
+  function getReturnForDays(days) {
+    if (h.length < 2) return null;
+    const base = h[Math.max(0, h.length - 1 - days)];
+    const ret = (latest.total - base.total) / base.total;
+    const actualDays = Math.max(1, Math.round((parseDate(latest.date) - parseDate(base.date)) / 86400000));
+    return ((1 + ret) ** (365 / actualDays) - 1) * 100;
+  }
+  const r30 = getReturnForDays(30);
+  const r60 = getReturnForDays(60);
+  const r90 = getReturnForDays(90);
+  const validRs = [r30, r60, r90].filter(r => r != null);
+  const maReturn = validRs.length > 0
+    ? (r30 != null && r60 != null && r90 != null
+      ? r30 * 0.5 + r60 * 0.3 + r90 * 0.2
+      : validRs.reduce((a,b)=>a+b,0) / validRs.length)
+    : cagr;
+
+  // ③ ボラティリティ調整済み（日次リターンの平均と標準偏差から計算）
+  const dailyReturns = h.slice(1).map((d, i) =>
+    h[i].total > 0 ? (d.total - h[i].total) / h[i].total : 0
+  );
+  const meanDaily = dailyReturns.reduce((a,b)=>a+b,0) / dailyReturns.length;
+  const variance = dailyReturns.reduce((a,b)=>a+(b-meanDaily)**2,0) / dailyReturns.length;
+  const stdDaily = Math.sqrt(variance);
+  // リスク調整後リターン = (平均日次リターン - 0.5×分散) × 365
+  const volAdjReturn = ((meanDaily - 0.5 * variance) * 365) * 100;
+
+  // 年末予測
   const today = new Date();
   const yearEnd = new Date(today.getFullYear(), 11, 31);
   const daysToYearEnd = Math.max(1, Math.round((yearEnd - today) / 86400000));
-  const dailyReturn = totalReturn / daysDiff;
-  const yearEndProjected = Math.round(latest.total * (1 + dailyReturn) ** daysToYearEnd);
+
+  function yearEndProj(annRate) {
+    return Math.round(latest.total * (1 + annRate/100) ** (daysToYearEnd/365));
+  }
+  function proj1y(annRate) {
+    return Math.round(latest.total * (1 + annRate/100));
+  }
+
   const rsData=h.find(d=>d.date===rangeStart),reData=h.find(d=>d.date===rangeEnd);
   const rChange=rsData&&reData?reData.total-rsData.total:null;
   const rPct=rsData&&rChange!=null?rChange/rsData.total*100:null;
@@ -363,22 +399,84 @@ function renderSummary(){
       </div>
     </div>
     <div class="card full" style="background:linear-gradient(135deg,#ede9fe,#ddd6fe);border-color:#c4b5fd">
-      <div style="display:flex;justify-content:space-between;align-items:flex-start">
-        <div>
-          <div style="font-size:10px;color:#7c3aed;font-weight:700;letter-spacing:2px;margin-bottom:4px">年率リターン予測（参考値）</div>
-          <div style="font-size:24px;font-weight:900;color:${col(annualReturn)}">${annualReturn>=0?"+":""}${annualReturn.toFixed(1)}%</div>
-          <div style="border-top:1px solid #c4b5fd;margin-top:10px;padding-top:10px">
-            <div style="font-size:10px;color:#7c3aed;font-weight:700;letter-spacing:2px;margin-bottom:4px">1年後の評価額予測</div>
-            <div style="font-size:17px;font-weight:800;color:#4c1d95">${fmt(projected)}</div>
-            <div style="font-size:11px;color:#7c3aed;margin-top:2px">現在 ${fmt(latest.total)} → 差額 ${fmt(projected-latest.total)}</div>
-            <div style="border-top:1px solid #c4b5fd;margin-top:10px;padding-top:10px">
-              <div style="font-size:10px;color:#7c3aed;font-weight:700;letter-spacing:2px;margin-bottom:4px">年末（12/31）予測 残り${daysToYearEnd}日</div>
-              <div style="font-size:17px;font-weight:800;color:#4c1d95">${fmt(yearEndProjected)}</div>
-              <div style="font-size:11px;color:#7c3aed;margin-top:2px">リターン予測 ${((yearEndProjected-latest.total)/latest.total*100)>=0?"+":""}${((yearEndProjected-latest.total)/latest.total*100).toFixed(1)}% / 差額 ${fmt(yearEndProjected-latest.total)}</div>
-            </div>
-          </div>
-        </div>
-        <div style="font-size:10px;color:#7c3aed;text-align:right;line-height:1.8">※ ${daysDiff}日間を<br>年率換算<br>参考値</div>
+      <div style="font-size:10px;color:#7c3aed;font-weight:700;letter-spacing:2px;margin-bottom:10px">📈 年率リターン予測（3手法比較・参考値）</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:12px">
+        ${[["cagr","① CAGR","複利年率",cagr],["ma","② 移動平均","直近重視型",maReturn],["vol","③ ボラ調整","リスク考慮型",volAdjReturn]].map(([key,label,sub,val])=>`
+        <div onclick="switchReturnMethod('${key}')" style="background:${returnMethod===key?"#7c3aed":"rgba(255,255,255,0.6)"};border-radius:10px;padding:10px;cursor:pointer;transition:all .2s;border:2px solid ${returnMethod===key?"#6d28d9":"transparent"}">
+          <div style="font-size:9px;color:${returnMethod===key?"#e9d5ff":"#7c3aed"};font-weight:700;margin-bottom:2px">${label}</div>
+          <div style="font-size:9px;color:${returnMethod===key?"#ddd6fe":"#a78bfa"};margin-bottom:6px">${sub}</div>
+          <div style="font-size:18px;font-weight:900;color:${returnMethod===key?"#fff":col(val)}">${val>=0?"+":""}${val.toFixed(1)}%</div>
+        </div>`).join("")}
+      </div>
+      <div style="border-top:1px solid #c4b5fd;padding-top:10px">
+        <div style="font-size:10px;color:#7c3aed;font-weight:700;margin-bottom:8px">年末（12/31）・1年後の評価額予測</div>
+        <table style="width:100%;font-size:11px;border-collapse:collapse">
+          <thead>
+            <tr style="border-bottom:1px solid #c4b5fd">
+              <th style="text-align:left;color:#a78bfa;font-weight:600;padding:4px 0">手法</th>
+              <th style="text-align:right;color:#a78bfa;font-weight:600;padding:4px 0">年末（残${daysToYearEnd}日）</th>
+              <th style="text-align:right;color:#a78bfa;font-weight:600;padding:4px 0">1年後</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${[["cagr","① CAGR",cagr],["ma","② 移動平均",maReturn],["vol","③ ボラ調整",volAdjReturn]].map(([key,label,val])=>`
+            <tr style="border-bottom:1px solid rgba(196,181,253,0.3);background:${returnMethod===key?"rgba(109,40,217,0.08)":"transparent"}">
+              <td style="color:#7c3aed;padding:5px 0;font-weight:${returnMethod===key?"800":"400"}">${label}${returnMethod===key?" ✓":""}</td>
+              <td style="text-align:right;font-weight:700;color:#4c1d95;padding:5px 0">${fmt(yearEndProj(val))}</td>
+              <td style="text-align:right;font-weight:700;color:#4c1d95;padding:5px 0">${fmt(proj1y(val))}</td>
+            </tr>`).join("")}
+          </tbody>
+        </table>
+
+        <div style="font-size:10px;color:#7c3aed;font-weight:700;margin-top:14px;margin-bottom:8px">ファンド別 年末・1年後予測</div>
+        <table style="width:100%;font-size:11px;border-collapse:collapse">
+          <thead>
+            <tr style="border-bottom:1px solid #c4b5fd">
+              <th style="text-align:left;color:#a78bfa;font-weight:600;padding:4px 0">ファンド</th>
+              <th style="text-align:right;color:#a78bfa;font-weight:600;padding:4px 0">年末</th>
+              <th style="text-align:right;color:#a78bfa;font-weight:600;padding:4px 0">1年後</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${DATA.funds.map(f => {
+              const flast = f.data.filter(d=>d.pnlPct!=null).slice(-1)[0];
+              const ffirst = f.data.filter(d=>d.pnlPct!=null)[0];
+              if (!flast || !ffirst || !f.units || !f.cost_nav || !flast.nav) return "";
+              const fDays = Math.max(1, Math.round((parseDate(flast.date)-parseDate(ffirst.date))/86400000));
+              const fTotalReturn = (flast.nav - ffirst.nav) / ffirst.nav;
+              let fRate;
+              if (returnMethod === "cagr") {
+                fRate = ((1 + fTotalReturn) ** (365/fDays) - 1) * 100;
+              } else if (returnMethod === "ma") {
+                const fData = f.data.filter(d=>d.pnlPct!=null);
+                const getR = (days) => {
+                  const base = fData[Math.max(0, fData.length-1-days)];
+                  if (!base?.nav || !flast?.nav) return null;
+                  const r = (flast.nav - base.nav) / base.nav;
+                  const d2 = Math.max(1, Math.round((parseDate(flast.date)-parseDate(base.date))/86400000));
+                  return ((1+r)**(365/d2)-1)*100;
+                };
+                const rs = [getR(30),getR(60),getR(90)].filter(r=>r!=null);
+                fRate = rs.length===3 ? rs[0]*0.5+rs[1]*0.3+rs[2]*0.2 : rs.reduce((a,b)=>a+b,0)/rs.length;
+              } else {
+                const fNavs = f.data.filter(d=>d.nav!=null).map(d=>d.nav);
+                const fDailyR = fNavs.slice(1).map((n,i)=>(n-fNavs[i])/fNavs[i]);
+                const fMean = fDailyR.reduce((a,b)=>a+b,0)/fDailyR.length;
+                const fVar = fDailyR.reduce((a,b)=>a+(b-fMean)**2,0)/fDailyR.length;
+                fRate = (fMean - 0.5*fVar)*365*100;
+              }
+              const evalNow = Math.round(f.units * flast.nav / 10000);
+              const fYearEnd = Math.round(evalNow * (1+fRate/100)**(daysToYearEnd/365));
+              const f1y = Math.round(evalNow * (1+fRate/100));
+              return `<tr style="border-bottom:1px solid rgba(196,181,253,0.3)">
+                <td style="padding:5px 0"><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${f.color};margin-right:4px"></span><span style="color:#4c1d95;font-weight:600">${f.short}</span></td>
+                <td style="text-align:right;font-weight:700;color:#4c1d95;padding:5px 0">${fmt(fYearEnd)}</td>
+                <td style="text-align:right;font-weight:700;color:#4c1d95;padding:5px 0">${fmt(f1y)}</td>
+              </tr>`;
+            }).join("")}
+          </tbody>
+        </table>
+        <div style="font-size:10px;color:#a78bfa;margin-top:8px">※ ${daysDiff}日間のデータをもとにした参考値です</div>
       </div>
     </div>`;
 
@@ -572,6 +670,7 @@ function renderMonthly(){
   buildMonthChart(mData); buildMFundsChart(mFunds);
 }
 function switchMonth(m){monthTab=m;destroyChart('month');destroyChart('mfunds');renderMonthly();}
+function switchReturnMethod(m){returnMethod=m;renderSummary();}
 function switchMonthSort(order){monthSortOrder=order;renderMonthly();}
 function buildMonthChart(mData){
   const ctx=document.getElementById('monthChart')?.getContext('2d'); if(!ctx||mData.length<2)return;
