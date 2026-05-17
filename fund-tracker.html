@@ -1,0 +1,652 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PRO TRACKER // 投資信託ポートフォリオ分析</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Noto+Sans+JP:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Noto Sans JP', sans-serif;
+            background-color: #020617;
+            color: #f8fafc;
+        }
+        .mono {
+            font-family: 'JetBrains Mono', monospace;
+        }
+        /* 日本語と英数の混在でも意味の切れ目で綺麗に改行させるスタイル */
+        .balanced-text {
+            word-break: normal;
+            overflow-wrap: break-word;
+            text-wrap: balance; /* ブラウザが自動で意味の切れ目を考慮して綺麗にバランスよく改行 */
+        }
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #0f172a;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #334155;
+            border-radius: 3px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #475569;
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col antialiased">
+
+    <!-- 未アップロード状態の画面 -->
+    <div id="upload-screen" class="flex-1 flex flex-col items-center justify-center p-6 text-center">
+        <div class="max-w-md w-full bg-slate-900 border border-slate-800 rounded-2xl p-8 shadow-2xl backdrop-blur-sm">
+            <div class="mb-6 flex justify-center">
+                <div class="p-4 bg-blue-500/10 text-blue-500 rounded-2xl border border-blue-500/20">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-10 w-10" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 002 2h2a2 2 0 002-2z" />
+                    </svg>
+                </div>
+            </div>
+            <h1 class="text-xl font-bold tracking-tight text-white mb-2">PRO TRACKER</h1>
+            <p class="text-xs text-slate-400 mb-8 leading-relaxed">
+                ポートフォリオ分析データをセキュアに読み込みます。<br>データはブラウザのメモリ内のみで処理され、外部に送信されることはありません。
+            </p>
+            
+            <label class="block cursor-pointer">
+                <span class="sr-only">JSONファイルを選択</span>
+                <div class="w-full py-4 px-6 bg-slate-950 border border-dashed border-slate-700 rounded-xl hover:border-blue-500 hover:bg-slate-950/50 transition duration-200 flex flex-col items-center justify-center gap-2 group">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-slate-400 group-hover:text-blue-400 transition" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                    </svg>
+                    <span class="text-sm font-medium text-slate-300 group-hover:text-white transition">fund-data.json を選択</span>
+                    <span class="text-xxs text-slate-500">ローカルファイルをセキュアにパースします</span>
+                </div>
+                <input type="file" id="file-input" accept=".json" class="hidden">
+            </label>
+        </div>
+    </div>
+
+    <!-- メインダッシュボード -->
+    <div id="dashboard" class="hidden flex-1 flex flex-col">
+        <!-- ヘッダー -->
+        <header class="bg-slate-900/50 backdrop-blur border-b border-slate-800/80 px-6 py-3 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 sticky top-0 z-50">
+            <div>
+                <div class="flex items-center gap-3">
+                    <span class="text-xs font-bold tracking-widest px-2 py-0.5 bg-blue-500/10 text-blue-400 border border-blue-500/20 rounded">PRO</span>
+                    <h1 class="text-base sm:text-lg font-bold tracking-tight text-white whitespace-nowrap">PORTFOLIO INTELLIGENCE</h1>
+                </div>
+                <p class="text-xs text-slate-400 mt-0.5 flex items-center gap-2">
+                    データ基準日: <span id="as-of-date" class="mono font-bold text-slate-200">-</span>
+                </p>
+            </div>
+            <button id="re-upload-btn" class="text-xs flex items-center gap-2 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg border border-slate-700 transition cursor-pointer whitespace-nowrap">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 1121.253 8H18" />
+                </svg>
+                別のデータを読み込む
+            </button>
+        </header>
+
+        <!-- コンテンツエリア -->
+        <main class="flex-1 p-4 lg:p-6 space-y-6 max-w-[1600px] w-full mx-auto">
+            
+            <!-- サマリーKPIカードセクション -->
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                <!-- 各KPIカード内のコンテナ幅を見直し、窮屈さを解消 -->
+                <div class="bg-slate-900 border border-slate-800/80 rounded-xl p-4 shadow-sm relative overflow-hidden flex flex-col justify-between min-h-[90px]">
+                    <p class="text-xs font-medium text-slate-400 uppercase tracking-wider whitespace-nowrap">総評価額</p>
+                    <p id="kpi-total" class="text-xl sm:text-2xl font-bold mono text-white whitespace-nowrap mt-1">¥0</p>
+                    <div class="absolute right-4 bottom-3 text-slate-800 pointer-events-none hidden sm:block">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                    </div>
+                </div>
+
+                <div class="bg-slate-900 border border-slate-800/80 rounded-xl p-4 shadow-sm relative overflow-hidden flex flex-col justify-between min-h-[90px]">
+                    <p class="text-xs font-medium text-slate-400 uppercase tracking-wider whitespace-nowrap">通算損益</p>
+                    <p id="kpi-pnl" class="text-xl sm:text-2xl font-bold mono whitespace-nowrap mt-1">¥0</p>
+                    <div class="absolute right-4 bottom-3 text-slate-800 pointer-events-none hidden sm:block">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+                        </svg>
+                    </div>
+                </div>
+
+                <div class="bg-slate-900 border border-slate-800/80 rounded-xl p-4 shadow-sm relative overflow-hidden flex flex-col justify-between min-h-[90px]">
+                    <p class="text-xs font-medium text-slate-400 uppercase tracking-wider whitespace-nowrap">通算損益率</p>
+                    <p id="kpi-pnl-pct" class="text-xl sm:text-2xl font-bold mono whitespace-nowrap mt-1">0.00%</p>
+                    <div class="absolute right-4 bottom-3 text-slate-800 pointer-events-none hidden sm:block">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 002 2h2a2 2 0 002-2z" />
+                        </svg>
+                    </div>
+                </div>
+
+                <div class="bg-slate-900 border border-slate-800/80 rounded-xl p-4 shadow-sm relative overflow-hidden flex flex-col justify-between min-h-[90px]">
+                    <p class="text-xs font-medium text-slate-400 uppercase tracking-wider whitespace-nowrap">推定総投資元本</p>
+                    <p id="kpi-cost" class="text-xl sm:text-2xl font-bold mono text-slate-300 whitespace-nowrap mt-1">¥0</p>
+                    <div class="absolute right-4 bottom-3 text-slate-800 pointer-events-none hidden sm:block">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+                        </svg>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 未来予測パネル -->
+            <div class="bg-gradient-to-r from-slate-900 to-blue-950/40 border border-blue-500/20 rounded-xl p-5 shadow-lg">
+                <div class="flex items-center gap-2 mb-4 border-b border-slate-800 pb-2.5">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-blue-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M11 3.055A9.003 9.003 0 1020.945 13H11V3.055z" />
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M20.488 9H15V3.512A9.025 9.025 0 0120.488 9z" />
+                    </svg>
+                    <h2 class="text-xs sm:text-sm font-bold text-white tracking-tight whitespace-nowrap overflow-hidden text-ellipsis">実績ベースの年率リターン算出 ＆ 将来評価額予測</h2>
+                    <span class="text-[10px] bg-blue-500/20 text-blue-300 px-1.5 py-0.5 rounded mono ml-auto whitespace-nowrap hidden sm:inline-block">PROJECTION MODEL</span>
+                </div>
+                
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <!-- 各要素内の文字折返し・はみ出しを防ぐためコンテナ設計を最適化 -->
+                    <div class="bg-slate-950/40 border border-slate-800/80 rounded-lg p-4 flex flex-col justify-between min-h-[85px]">
+                        <div>
+                            <span class="text-[10px] font-semibold text-slate-400 uppercase tracking-wider block whitespace-nowrap">実績ベースの年率リターン(複利換算)</span>
+                            <p class="text-[10px] text-slate-500 mt-0.5 whitespace-nowrap overflow-hidden text-ellipsis" id="calc-period-label">計測期間: --日間</p>
+                        </div>
+                        <p id="sim-annual-return" class="text-2xl sm:text-3xl font-bold text-emerald-400 mono mt-2 whitespace-nowrap">0.00%</p>
+                    </div>
+                    
+                    <div class="bg-slate-950/40 border border-slate-800/80 rounded-lg p-4 flex flex-col justify-between min-h-[85px]">
+                        <div>
+                            <span class="text-[10px] font-semibold text-slate-400 uppercase tracking-wider block whitespace-nowrap">同ペース維持時の年末(12/31)予想評価額</span>
+                            <p class="text-[10px] text-slate-500 mt-0.5 whitespace-nowrap overflow-hidden text-ellipsis" id="calc-yearend-label">残り日数: --日</p>
+                        </div>
+                        <p id="sim-yearend-total" class="text-xl sm:text-2xl font-bold text-white mono mt-2 whitespace-nowrap">¥0</p>
+                    </div>
+
+                    <div class="bg-slate-950/40 border border-slate-800/80 rounded-lg p-4 flex flex-col justify-between min-h-[85px]">
+                        <div>
+                            <span class="text-[10px] font-semibold text-slate-400 uppercase tracking-wider block whitespace-nowrap">更新日から1年後の予想評価額</span>
+                            <p class="text-[10px] text-slate-500 mt-0.5 whitespace-nowrap overflow-hidden text-ellipsis" id="calc-oneyear-label">ターゲット: 更新日 + 365日</p>
+                        </div>
+                        <p id="sim-oneyear-total" class="text-xl sm:text-2xl font-bold text-blue-400 mono mt-2 whitespace-nowrap">¥0</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 月次分析セクション -->
+            <div class="bg-slate-900 border border-slate-800 rounded-xl p-5 shadow-md">
+                <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-3 mb-4 border-b border-slate-800 pb-3">
+                    <h2 class="text-xs sm:text-sm font-bold text-white tracking-tight flex items-center gap-2 whitespace-nowrap">
+                        <span class="w-1.5 h-3 bg-amber-500 rounded-full"></span>
+                        月次パフォーマンス推移 ＆ 月間騰落分析
+                    </h2>
+                    <div id="monthly-tabs" class="flex flex-wrap gap-1 bg-slate-950 p-1 border border-slate-800/80 rounded-lg">
+                        <!-- JSで動的に月別ボタンを追加 -->
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-4" id="monthly-performance-panel">
+                    <div class="bg-slate-950/50 border border-slate-800/60 rounded-lg p-3.5">
+                        <span class="text-[10px] font-medium text-slate-500 tracking-wider block uppercase whitespace-nowrap">月間合計リターン（額）</span>
+                        <p id="month-pnl-val" class="text-lg sm:text-xl font-bold mono mt-1 whitespace-nowrap">¥0</p>
+                    </div>
+                    <div class="bg-slate-950/50 border border-slate-800/60 rounded-lg p-3.5">
+                        <span class="text-[10px] font-medium text-slate-500 tracking-wider block uppercase whitespace-nowrap">月間騰落率</span>
+                        <p id="month-pnl-pct" class="text-lg sm:text-xl font-bold mono mt-1 whitespace-nowrap">0.00%</p>
+                    </div>
+                    <div class="bg-slate-950/50 border border-slate-800/60 rounded-lg p-3.5">
+                        <span class="text-[10px] font-medium text-slate-500 tracking-wider block uppercase whitespace-nowrap">月末時点の評価額</span>
+                        <p id="month-end-total" class="text-lg sm:text-xl font-bold mono text-slate-200 mt-1 whitespace-nowrap">¥0</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- チャートセクション -->
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <!-- 資産総額・損益推移チャート -->
+                <div class="lg:col-span-2 bg-slate-900 border border-slate-800/80 rounded-xl p-5 flex flex-col h-[380px]">
+                    <div class="flex justify-between items-center mb-4">
+                        <h2 class="text-xs sm:text-sm font-bold text-white tracking-tight flex items-center gap-2 whitespace-nowrap">
+                            <span class="w-1.5 h-3 bg-blue-500 rounded-full"></span>
+                            総資産額および損益の推移
+                        </h2>
+                        <span class="text-xxs text-slate-500 mono hidden sm:inline">HISTORICAL PERFORMANCE</span>
+                    </div>
+                    <div class="flex-1 relative">
+                        <canvas id="performanceChart"></canvas>
+                    </div>
+                </div>
+
+                <!-- アセットアロケーション（パイ） -->
+                <div class="bg-slate-900 border border-slate-800/80 rounded-xl p-5 flex flex-col h-[380px]">
+                    <div class="flex justify-between items-center mb-2">
+                        <h2 class="text-xs sm:text-sm font-bold text-white tracking-tight flex items-center gap-2 whitespace-nowrap">
+                            <span class="w-1.5 h-3 bg-purple-500 rounded-full"></span>
+                            資産構成比率（評価額順）
+                        </h2>
+                        <span class="text-xxs text-slate-500 mono hidden sm:inline">PORTFOLIO ALLOCATION</span>
+                    </div>
+                    <div class="flex-1 relative flex items-center justify-center">
+                        <canvas id="allocationChart" style="max-height: 250px; max-width: 250px;"></canvas>
+                    </div>
+                </div>
+
+                <!-- 各ファンドの騰落率比較（ライン） -->
+                <div class="lg:col-span-3 bg-slate-900 border border-slate-800/80 rounded-xl p-5 flex flex-col h-[380px]">
+                    <div class="flex justify-between items-center mb-4">
+                        <h2 class="text-xs sm:text-sm font-bold text-white tracking-tight flex items-center gap-2 whitespace-nowrap">
+                            <span class="w-1.5 h-3 bg-emerald-500 rounded-full"></span>
+                            個別ファンドの累積騰落率推移（％）
+                        </h2>
+                        <span class="text-xxs text-slate-500 mono hidden sm:inline">FUND COMPARISON</span>
+                    </div>
+                    <div class="flex-1 relative">
+                        <canvas id="fundsChart"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 保有ファンド詳細 -->
+            <div class="space-y-3">
+                <div class="flex justify-between items-center px-1">
+                    <h2 class="text-xs sm:text-sm font-bold text-white tracking-tight flex items-center gap-2 whitespace-nowrap">
+                        <span class="w-1.5 h-3 bg-slate-400 rounded-full"></span>
+                        保有ファンド詳細パフォーマンス（資産比率順）
+                    </h2>
+                    <span id="fund-count" class="text-xxs font-bold bg-slate-800 text-slate-400 px-2 py-0.5 rounded-full mono whitespace-nowrap">0 FUNDS</span>
+                </div>
+                
+                <div id="fund-cards-container" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                    <!-- JSで動的追加 -->
+                </div>
+            </div>
+        </main>
+        
+        <!-- フッター -->
+        <footer class="mt-auto py-4 px-4 border-t border-slate-800/60 text-center text-[10px] text-slate-500 font-medium tracking-wider bg-slate-950/40 whitespace-normal balanced-text leading-relaxed">
+            SECURE CLIENT-SIDE ASSET MONITOR // NO DATA LEAVES YOUR DEVICE
+        </footer>
+    </div>
+
+    <!-- JavaScript ロジック -->
+    <script>
+        let performanceChartInstance = null;
+        let allocationChartInstance = null;
+        let fundsChartInstance = null;
+        let monthlyDataCache = {};
+
+        document.getElementById('file-input').addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(evt) {
+                try {
+                    const data = JSON.parse(evt.target.result);
+                    renderDashboard(data);
+                } catch (error) {
+                    alert('JSONファイルのパースに失敗しました。正しいデータ形式かご確認ください。');
+                    console.error(error);
+                }
+            };
+            reader.readAsText(file);
+        });
+
+        document.getElementById('re-upload-btn').addEventListener('click', function() {
+            document.getElementById('file-input').value = '';
+            document.getElementById('dashboard').classList.add('hidden');
+            document.getElementById('upload-screen').classList.remove('hidden');
+            
+            if (performanceChartInstance) performanceChartInstance.destroy();
+            if (allocationChartInstance) allocationChartInstance.destroy();
+            if (fundsChartInstance) fundsChartInstance.destroy();
+        });
+
+        function formatCurrency(val) {
+            return new Intl.NumberFormat('ja-JP', { style: 'currency', currency: 'JPY', maximumFractionDigits: 0 }).format(val);
+        }
+
+        function formatPercent(val) {
+            if (val === null || val === undefined) return '-';
+            const prefix = val > 0 ? '+' : '';
+            return prefix + val.toFixed(2) + '%';
+        }
+
+        function parseMDStr(mdStr) {
+            const parts = mdStr.split('/');
+            const month = parseInt(parts[0], 10) - 1;
+            const day = parseInt(parts[1], 10);
+            const currentYear = new Date().getFullYear();
+            return new Date(currentYear, month, day);
+        }
+
+        function renderDashboard(data) {
+            document.getElementById('upload-screen').classList.add('hidden');
+            document.getElementById('dashboard').classList.remove('hidden');
+
+            const history = data.history || [];
+            let funds = data.funds || [];
+
+            if (history.length === 0 || funds.length === 0) {
+                alert('データ構造が空、または不正です。');
+                return;
+            }
+
+            const latestRecord = history[history.length - 1];
+            document.getElementById('as-of-date').textContent = latestRecord.date;
+
+            // KPI更新
+            document.getElementById('kpi-total').textContent = formatCurrency(latestRecord.total);
+            
+            const pnlEl = document.getElementById('kpi-pnl');
+            pnlEl.textContent = formatCurrency(latestRecord.pnl);
+            pnlEl.className = "text-xl sm:text-2xl font-bold mono mt-1 " + (latestRecord.pnl >= 0 ? "text-emerald-400" : "text-rose-400");
+
+            const pnlPctEl = document.getElementById('kpi-pnl-pct');
+            pnlPctEl.textContent = formatPercent(latestRecord.pnlPct);
+            pnlPctEl.className = "text-xl sm:text-2xl font-bold mono mt-1 " + (latestRecord.pnlPct >= 0 ? "text-emerald-400" : "text-rose-400");
+
+            const totalCost = latestRecord.total - latestRecord.pnl;
+            document.getElementById('kpi-cost').textContent = formatCurrency(totalCost);
+
+            document.getElementById('fund-count').textContent = `${funds.length} FUNDS`;
+
+            // 未来予測
+            try {
+                const firstRecord = history[0];
+                const startDate = parseMDStr(firstRecord.date);
+                const endDate = parseMDStr(latestRecord.date);
+                
+                const msDiff = endDate.getTime() - startDate.getTime();
+                const daysDiff = Math.max(1, Math.round(msDiff / (1000 * 60 * 60 * 24)));
+                
+                const totalReturnRatio = latestRecord.total / firstRecord.total;
+                const annualReturn = Math.pow(totalReturnRatio, 365 / daysDiff) - 1;
+                
+                document.getElementById('calc-period-label').textContent = `計測期間: ${daysDiff}日間 (${firstRecord.date} 〜 ${latestRecord.date})`;
+                document.getElementById('sim-annual-return').textContent = formatPercent(annualReturn * 100);
+                
+                const currentYear = endDate.getFullYear();
+                const yearEndYear = (endDate.getMonth() === 11 && endDate.getDate() === 31) ? currentYear + 1 : currentYear; 
+                const yearEndDate = new Date(yearEndYear, 11, 31);
+                const msToYearEnd = yearEndDate.getTime() - endDate.getTime();
+                const daysToYearEnd = Math.max(0, Math.round(msToYearEnd / (1000 * 60 * 60 * 24)));
+                
+                const yearEndTotal = latestRecord.total * Math.pow(1 + annualReturn, daysToYearEnd / 365);
+                document.getElementById('calc-yearend-label').textContent = `残り日数: ${daysToYearEnd}日 (〜12/31まで)`;
+                document.getElementById('sim-yearend-total').textContent = formatCurrency(yearEndTotal);
+                
+                const oneYearTotal = latestRecord.total * (1 + annualReturn);
+                document.getElementById('calc-oneyear-label').textContent = `ターゲット: 365日後 (${latestRecord.date}の1年後時点)`;
+                document.getElementById('sim-oneyear-total').textContent = formatCurrency(oneYearTotal);
+                
+            } catch (err) {
+                console.error(err);
+            }
+
+            buildMonthlyPerformance(history);
+
+            // 1. 総資産額チャート
+            const dates = history.map(h => h.date);
+            const totals = history.map(h => h.total);
+            const pnls = history.map(h => h.pnl);
+
+            const ctxPerf = document.getElementById('performanceChart').getContext('2d');
+            performanceChartInstance = new Chart(ctxPerf, {
+                type: 'line',
+                data: {
+                    labels: dates,
+                    datasets: [
+                        { label: '総資産額 (左軸)', data: totals, borderColor: '#3b82f6', borderWidth: 2, pointRadius: 0, pointHitRadius: 10, pointHoverRadius: 4, yAxisID: 'yTotal', tension: 0.1 },
+                        { label: '累積損益 (右軸)', data: pnls, borderColor: '#10b981', borderWidth: 1.5, pointRadius: 0, pointHitRadius: 10, pointHoverRadius: 4, backgroundColor: 'rgba(16, 185, 129, 0.03)', fill: true, yAxisID: 'yPnl', tension: 0.1 }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    interaction: { mode: 'index', intersect: false },
+                    plugins: {
+                        legend: { labels: { color: '#94a3b8', font: { size: 11 }, usePointStyle: true, pointStyle: 'line', boxWidth: 24 } },
+                        tooltip: { backgroundColor: '#0f172a', titleColor: '#f8fafc', bodyColor: '#cbd5e1', borderColor: '#334155', borderWidth: 1 }
+                    },
+                    scales: {
+                        x: { grid: { color: '#1e293b' }, ticks: { color: '#64748b', font: { size: 10 } } },
+                        yTotal: { type: 'linear', display: true, position: 'left', grid: { color: '#1e293b' }, ticks: { color: '#94a3b8', font: { size: 10 } } },
+                        yPnl: { type: 'linear', display: true, position: 'right', grid: { drawOnChartArea: false }, ticks: { color: '#10b981', font: { size: 10 } } }
+                    }
+                }
+            });
+
+            // 2. ファンド詳細データソート
+            const processedFunds = funds.map(fund => {
+                const fData = fund.data || [];
+                const latestFundData = fData[fData.length - 1] || {};
+                const currentNav = latestFundData.nav || fund.cost_nav;
+                const units = fund.units || 0;
+                const costNav = fund.cost_nav || 0;
+                
+                const currentVal = (currentNav * units) / 10000;
+                const costVal = (costNav * units) / 10000;
+                const fundPnl = currentVal - costVal;
+                const fundPnlPct = latestFundData.pnlPct !== null ? latestFundData.pnlPct : ((currentNav - costNav) / costNav) * 100;
+
+                return { ...fund, currentNav, units, costNav, currentVal, costVal, fundPnl, fundPnlPct };
+            });
+
+            const totalEvaluation = processedFunds.reduce((sum, f) => sum + f.currentVal, 0);
+            processedFunds.sort((a, b) => b.currentVal - a.currentVal);
+
+            // 3. カードグリッドのレンダリング（意味の切れ目で綺麗に自動改行させる改良版）
+            const cardsContainer = document.getElementById('fund-cards-container');
+            cardsContainer.innerHTML = '';
+
+            const allocLabels = [];
+            const allocValues = [];
+            const allocColors = [];
+
+            processedFunds.forEach(fund => {
+                allocLabels.push(fund.short || fund.name);
+                allocValues.push(fund.currentVal);
+                allocColors.push(fund.color || '#64748b');
+
+                const ratio = totalEvaluation > 0 ? ((fund.currentVal / totalEvaluation) * 100).toFixed(1) : '0.0';
+                const pnlTextClass = fund.fundPnl >= 0 ? "text-emerald-400" : "text-rose-400";
+                const pnlBgClass = fund.fundPnl >= 0 ? "bg-emerald-500/5 border-emerald-500/20 text-emerald-400" : "bg-rose-500/5 border-rose-500/20 text-rose-400";
+
+                const card = document.createElement('div');
+                card.className = "bg-slate-900 border border-slate-800 rounded-xl p-5 flex flex-col justify-between shadow-md hover:border-slate-700 transition duration-150";
+                
+                // 【変更点】省略（truncate）を一切排除し、balanced-textクラスによって信託ファンド名が日本語・英語の文脈を保ったまま綺麗に自動改行されるように変更
+                // さらに各グリッドデータの数値がはみ出ないよう padding やレイアウトに余裕を持たせました
+                card.innerHTML = `
+                    <div class="w-full">
+                        <!-- タイトルエリア: 省略無し、美しい自然改行コントロール -->
+                        <div class="flex items-start justify-between gap-3 mb-4">
+                            <div class="flex items-start gap-2 min-w-0">
+                                <span class="w-2 h-2 rounded-full flex-shrink-0 mt-1.5" style="background-color: ${fund.color}"></span>
+                                <h3 class="text-xs sm:text-sm font-bold text-white tracking-tight balanced-text" title="${fund.name}">
+                                    ${fund.name}
+                                </h3>
+                            </div>
+                            <span class="text-[10px] font-bold bg-slate-800 text-slate-400 px-1.5 py-0.5 rounded mono flex-shrink-0 whitespace-nowrap">
+                                比率 ${ratio}%
+                            </span>
+                        </div>
+
+                        <!-- 主要数値パネル -->
+                        <div class="grid grid-cols-2 gap-3 p-3 ${pnlBgClass} border rounded-lg mb-4">
+                            <div class="min-w-0">
+                                <p class="text-[10px] text-slate-400 uppercase tracking-wider whitespace-nowrap">現在評価額</p>
+                                <p class="text-sm font-bold mono text-white mt-0.5 whitespace-nowrap overflow-hidden text-ellipsis">¥${Math.round(fund.currentVal).toLocaleString()}</p>
+                            </div>
+                            <div class="text-right min-w-0">
+                                <p class="text-[10px] text-slate-400 uppercase tracking-wider whitespace-nowrap">評価損益 (${formatPercent(fund.fundPnlPct)})</p>
+                                <p class="text-sm font-bold mono mt-0.5 whitespace-nowrap overflow-hidden text-ellipsis ${pnlTextClass}">¥${Math.round(fund.fundPnl).toLocaleString()}</p>
+                            </div>
+                        </div>
+
+                        <!-- グリッド詳細データ（はみ出しをゼロにするレイアウト調整） -->
+                        <div class="grid grid-cols-2 gap-y-3 gap-x-2 text-xs border-t border-slate-800/80 pt-3">
+                            <div class="min-w-0">
+                                <p class="text-[10px] text-slate-500 tracking-wider whitespace-nowrap">保有口数</p>
+                                <p class="font-medium mono text-slate-300 mt-0.5 text-xs whitespace-nowrap overflow-hidden text-ellipsis">${Math.round(fund.units).toLocaleString()} 口</p>
+                            </div>
+                            <div class="text-right min-w-0">
+                                <p class="text-[10px] text-slate-500 tracking-wider whitespace-nowrap">投資元本</p>
+                                <p class="font-medium mono text-slate-300 mt-0.5 text-xs whitespace-nowrap overflow-hidden text-ellipsis">¥${Math.round(fund.costVal).toLocaleString()}</p>
+                            </div>
+                            <div class="min-w-0">
+                                <p class="text-[10px] text-slate-500 tracking-wider whitespace-nowrap">平均取得単価</p>
+                                <p class="font-medium mono text-slate-400 mt-0.5 text-xs whitespace-nowrap overflow-hidden text-ellipsis">¥${Math.round(fund.costNav).toLocaleString()}</p>
+                            </div>
+                            <div class="text-right min-w-0">
+                                <p class="text-[10px] text-slate-500 tracking-wider whitespace-nowrap">現在基準価額</p>
+                                <p class="font-medium mono text-slate-200 mt-0.5 text-xs whitespace-nowrap overflow-hidden text-ellipsis">¥${Math.round(fund.currentNav).toLocaleString()}</p>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                cardsContainer.appendChild(card);
+            });
+
+            // パイチャート
+            const ctxAlloc = document.getElementById('allocationChart').getContext('2d');
+            allocationChartInstance = new Chart(ctxAlloc, {
+                type: 'doughnut',
+                data: { labels: allocLabels, datasets: [{ data: allocValues, backgroundColor: allocColors, borderWidth: 2, borderColor: '#0f172a' }] },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { position: 'bottom', labels: { color: '#94a3b8', font: { size: 10 }, usePointStyle: true, pointStyle: 'circle', boxWidth: 6, padding: 12 } },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    const value = context.raw || 0;
+                                    const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                                    const pct = ((value / total) * 100).toFixed(1);
+                                    return ` ${context.label}: ${formatCurrency(value)} (${pct}%)`;
+                                }
+                            }
+                        }
+                    },
+                    cutout: '70%'
+                }
+            });
+
+            // 騰落率チャート
+            const fundDatasets = processedFunds.map(fund => {
+                const dataMap = {};
+                (fund.data || []).forEach(d => { dataMap[d.date] = d.pnlPct; });
+                const pnlPctTimeline = dates.map(date => dataMap[date] !== undefined ? dataMap[date] : null);
+
+                return {
+                    label: fund.short || fund.name,
+                    data: pnlPctTimeline,
+                    borderColor: fund.color,
+                    borderWidth: 2,
+                    pointRadius: 0,
+                    pointHitRadius: 10,
+                    pointHoverRadius: 4,
+                    fill: false,
+                    tension: 0.1
+                };
+            });
+
+            const ctxFunds = document.getElementById('fundsChart').getContext('2d');
+            fundsChartInstance = new Chart(ctxFunds, {
+                type: 'line',
+                data: { labels: dates, datasets: fundDatasets },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    interaction: { mode: 'index', intersect: false },
+                    plugins: {
+                        legend: { labels: { color: '#94a3b8', font: { size: 11 }, usePointStyle: true, pointStyle: 'line', boxWidth: 24 } },
+                        tooltip: { backgroundColor: '#0f172a', borderColor: '#334155', borderWidth: 1 }
+                    },
+                    scales: {
+                        x: { grid: { color: '#1e293b' }, ticks: { color: '#64748b', font: { size: 10 } } },
+                        y: { grid: { color: '#1e293b' }, ticks: { color: '#94a3b8', font: { size: 10 }, callback: function(value) { return value + '%'; } } }
+                    }
+                }
+            });
+        }
+
+        function buildMonthlyPerformance(history) {
+            monthlyDataCache = {};
+            history.forEach(record => {
+                const parts = record.date.split('/');
+                const monthName = parts[0] + "月";
+                if (!monthlyDataCache[monthName]) monthlyDataCache[monthName] = [];
+                monthlyDataCache[monthName].push(record);
+            });
+
+            const tabsContainer = document.getElementById('monthly-tabs');
+            tabsContainer.innerHTML = '';
+            const months = Object.keys(monthlyDataCache);
+            
+            months.forEach((month, idx) => {
+                const btn = document.createElement('button');
+                btn.className = "text-xs px-2.5 py-1 font-medium rounded-md transition cursor-pointer whitespace-nowrap";
+                btn.textContent = month;
+                
+                if (idx === months.length - 1) {
+                    btn.classList.add('bg-blue-600', 'text-white');
+                    updateMonthlyPanel(month, idx, months);
+                } else {
+                    btn.classList.add('text-slate-400', 'hover:text-white', 'hover:bg-slate-900');
+                }
+
+                btn.addEventListener('click', function() {
+                    Array.from(tabsContainer.children).forEach(child => {
+                        child.className = "text-xs px-2.5 py-1 font-medium rounded-md text-slate-400 hover:text-white hover:bg-slate-900 transition cursor-pointer whitespace-nowrap";
+                    });
+                    btn.className = "text-xs px-2.5 py-1 font-medium rounded-md bg-blue-600 text-white transition cursor-pointer whitespace-nowrap";
+                    updateMonthlyPanel(month, idx, months);
+                });
+
+                tabsContainer.appendChild(btn);
+            });
+        }
+
+        function updateMonthlyPanel(selectedMonth, index, allMonths) {
+            const records = monthlyDataCache[selectedMonth];
+            if (!records || records.length === 0) return;
+
+            const endOfCurrentMonth = records[records.length - 1];
+            let startVal = 0;
+            
+            if (index === 0) {
+                startVal = records[0].total;
+            } else {
+                const prevMonthName = allMonths[index - 1];
+                const prevMonthRecords = monthlyDataCache[prevMonthName];
+                startVal = prevMonthRecords[prevMonthRecords.length - 1].total;
+            }
+
+            const endVal = endOfCurrentMonth.total;
+            const monthPnlVal = endVal - startVal;
+            const monthPnlPct = startVal > 0 ? (monthPnlVal / startVal) * 100 : 0;
+
+            const pnlValEl = document.getElementById('month-pnl-val');
+            pnlValEl.textContent = formatCurrency(monthPnlVal);
+            pnlValEl.className = "text-lg sm:text-xl font-bold mono mt-1 " + (monthPnlVal >= 0 ? "text-emerald-400" : "text-rose-400");
+
+            const pnlPctEl = document.getElementById('month-pnl-pct');
+            pnlPctEl.textContent = formatPercent(monthPnlPct);
+            pnlPctEl.className = "text-lg sm:text-xl font-bold mono mt-1 " + (monthPnlPct >= 0 ? "text-emerald-400" : "text-rose-400");
+
+            document.getElementById('month-end-total').textContent = formatCurrency(endVal);
+        }
+    </script>
+</body>
+</html>
