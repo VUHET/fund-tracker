@@ -626,25 +626,6 @@ function renderMonthly(){
   const vsPct=base&&vs!=null?vs/base.total*100:null;
   const mFunds=DATA.funds.map(f=>({...f,data:f.data.filter(d=>getMonth(d.date)===monthTab)}));
 
-  // ソート処理
-  const fundList = DATA.funds.map(f=>{
-    const md=f.data.filter(d=>getMonth(d.date)===monthTab&&d.pnlPct!=null);
-    const mf=md[0],ml=md[md.length-1],diff=mf&&ml?ml.pnlPct-mf.pnlPct:null;
-    return {f, md, mf, ml, diff};
-  });
-  if (monthSortOrder==="desc") fundList.sort((a,b)=>(b.ml?.pnlPct??-999)-(a.ml?.pnlPct??-999));
-  else if (monthSortOrder==="asc") fundList.sort((a,b)=>(a.ml?.pnlPct??999)-(b.ml?.pnlPct??999));
-
-  const fundCards=fundList.map(({f,ml,diff})=>{
-    return `<div class="fund-card" style="border-left:3px solid ${f.color}">
-      <div style="font-size:13px;font-weight:700">${f.name}</div>
-      <div class="fund-stats">
-        <div><div class="card-label">月末損益率</div><div style="font-size:16px;font-weight:800;color:${col(ml?.pnlPct)}">${fmtPct(ml?.pnlPct)}</div></div>
-        <div><div class="card-label">月内変化</div><div style="font-size:16px;font-weight:800;color:${col(diff)}">${diff!=null?(diff>=0?"+":"")+diff.toFixed(2)+"%":"—"}</div></div>
-        <div><div class="card-label">基準価額</div><div style="font-size:13px;font-weight:600;color:#64748b">${fmt(ml?.nav)}</div></div>
-        ${f.units&&f.cost_nav&&ml?.nav?`<div><div class="card-label">含み益</div><div style="font-size:13px;font-weight:700;color:${col(Math.round(f.units*ml.nav/10000)-Math.round(f.units*f.cost_nav/10000))}">${fmtSigned(Math.round(f.units*ml.nav/10000)-Math.round(f.units*f.cost_nav/10000))}</div></div>`:""}
-      </div></div>`;
-  }).join("");
   document.getElementById('tabContent').innerHTML=`
     <div class="tabs">${months.map(m=>`<button class="tab${monthTab===m?" active":""}" onclick="switchMonth('${m}')">${m}</button>`).join("")}</div>
     <div class="grid2">
@@ -667,16 +648,7 @@ function renderMonthly(){
       <div style="font-size:11px;color:#94a3b8;margin-bottom:8px">月初を0%として月内の変動を表示</div>
       <div class="chart-wrap"><canvas id="mFundsChart"></canvas></div>
       <div class="legend">${DATA.funds.map(f=>`<div class="legend-item"><div class="legend-line" style="background:${f.color}"></div>${f.short}</div>`).join("")}</div>
-    </div>
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
-      <div style="font-size:12px;color:#64748b;font-weight:600">ファンド別</div>
-      <div style="display:flex;gap:6px">
-        <button class="mbtn${monthSortOrder==='none'?' active':''}" onclick="switchMonthSort('none')">デフォルト</button>
-        <button class="mbtn${monthSortOrder==='desc'?' active':''}" onclick="switchMonthSort('desc')">高い順▼</button>
-        <button class="mbtn${monthSortOrder==='asc'?' active':''}" onclick="switchMonthSort('asc')">低い順▲</button>
-      </div>
-    </div>
-    ${fundCards}`;
+    </div>`;
   buildMonthChart(mData); buildMFundsChart(mFunds);
 }
 function switchMonth(m){monthTab=m;destroyChart('month');destroyChart('mfunds');renderMonthly();}
@@ -714,20 +686,43 @@ function buildMFundsChart(mFunds){
 
 // ===== ファンド別 =====
 function renderFunds(){
-  const months=getMonths();
-  const displayFunds=fundsView==="total"?DATA.funds:DATA.funds.map(f=>({...f,data:f.data.filter(d=>getMonth(d.date)===fundsView)}));
-  const fundCards=DATA.funds.map(f=>{
-    const v=fundsView==="total"?f.data.filter(d=>d.pnlPct!=null):f.data.filter(d=>getMonth(d.date)===fundsView&&d.pnlPct!=null);
-    const lf=v[v.length-1],ff=v[0],diff=lf&&ff?lf.pnlPct-ff.pnlPct:null;
+  const months = getMonths();
+  const isMonth = fundsView !== "total";
+
+  // ファンドデータ取得＋ソート
+  let fundList = DATA.funds.map(f => {
+    const v = fundsView === "total"
+      ? f.data.filter(d=>d.pnlPct!=null)
+      : f.data.filter(d=>getMonth(d.date)===fundsView&&d.pnlPct!=null);
+    const lf = v[v.length-1], ff = v[0];
+    const diff = lf && ff ? lf.pnlPct - ff.pnlPct : null;
+    // 月間損益（口数×（月末nav - 月初nav）/10000）
+    const lastNav  = lf  && f.cost_nav ? f.cost_nav*(1+lf.pnlPct/100)  : null;
+    const firstNav = ff  && f.cost_nav ? f.cost_nav*(1+ff.pnlPct/100)  : null;
+    const monthPnl = f.units && lastNav && firstNav ? Math.round(f.units*(lastNav-firstNav)/10000) : null;
+    const curPnl   = f.units && f.cost_nav && lastNav ? Math.round(f.units*(lastNav-f.cost_nav)/10000) : null;
+    return { f, lf, ff, diff, monthPnl, curPnl };
+  });
+
+  if (monthSortOrder==="desc") fundList.sort((a,b)=>(b.lf?.pnlPct??-999)-(a.lf?.pnlPct??-999));
+  else if (monthSortOrder==="asc") fundList.sort((a,b)=>(a.lf?.pnlPct??999)-(b.lf?.pnlPct??999));
+
+  const fundCards = fundList.map(({f, lf, diff, monthPnl, curPnl}) => {
     return `<div class="fund-card" style="border-left:3px solid ${f.color}">
       <div style="font-size:13px;font-weight:700">${f.name}</div>
       <div class="fund-stats">
         <div><div class="card-label">${fundsView==="total"?"最新":"月末"}損益率</div><div style="font-size:17px;font-weight:800;color:${col(lf?.pnlPct)}">${fmtPct(lf?.pnlPct)}</div></div>
-        <div><div class="card-label">基準価額</div><div style="font-size:14px;font-weight:700">${fmt(lf?.nav)}</div></div>
-        <div><div class="card-label">${fundsView==="total"?"期間":"月内"}変化</div><div style="font-size:14px;font-weight:700;color:${col(diff)}">${diff!=null?(diff>=0?"+":"")+diff.toFixed(2)+"%":"—"}</div></div>
-        ${f.units&&f.cost_nav&&lf?.nav?`<div><div class="card-label">含み益</div><div style="font-size:14px;font-weight:700;color:${col(Math.round(f.units*lf.nav/10000)-Math.round(f.units*f.cost_nav/10000))}">${fmtSigned(Math.round(f.units*lf.nav/10000)-Math.round(f.units*f.cost_nav/10000))}</div></div>`:""}
+        <div><div class="card-label">${isMonth?"月内変化":"期間変化"}</div><div style="font-size:15px;font-weight:700;color:${col(diff)}">${diff!=null?(diff>=0?"+":"")+diff.toFixed(2)+"%":"—"}</div></div>
+        ${isMonth && monthPnl!=null ? `<div><div class="card-label">月間損益</div><div style="font-size:15px;font-weight:700;color:${col(monthPnl)}">${fmtSigned(monthPnl)}</div></div>` : ""}
+        ${curPnl!=null ? `<div><div class="card-label">含み益</div><div style="font-size:15px;font-weight:700;color:${col(curPnl)}">${fmtSigned(curPnl)}</div></div>` : ""}
+        <div><div class="card-label">基準価額</div><div style="font-size:13px;font-weight:600;color:#64748b">${fmt(lf?.nav)}</div></div>
       </div></div>`;
   }).join("");
+
+  const displayFunds = fundsView==="total"
+    ? DATA.funds
+    : DATA.funds.map(f=>({...f,data:f.data.filter(d=>getMonth(d.date)===fundsView)}));
+
   document.getElementById('tabContent').innerHTML=`
     <div class="tabs">
       <button class="tab${fundsView==="total"?" active":""}" onclick="switchFundsView('total')">全期間</button>
@@ -737,7 +732,16 @@ function renderFunds(){
       <div style="font-size:12px;color:#64748b;margin-bottom:8px">${fundsView==="total"?"全期間":fundsView} 損益率推移（%）</div>
       <div class="chart-wrap"><canvas id="fundsChart"></canvas></div>
       <div class="legend">${DATA.funds.map(f=>`<div class="legend-item"><div class="legend-line" style="background:${f.color}"></div>${f.short}</div>`).join("")}</div>
-    </div>${fundCards}`;
+    </div>
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+      <div style="font-size:12px;color:#64748b;font-weight:600">ファンド別</div>
+      <div style="display:flex;gap:6px">
+        <button class="mbtn${monthSortOrder==='none'?' active':''}" onclick="switchMonthSort('none')">デフォルト</button>
+        <button class="mbtn${monthSortOrder==='desc'?' active':''}" onclick="switchMonthSort('desc')">高い順▼</button>
+        <button class="mbtn${monthSortOrder==='asc'?' active':''}" onclick="switchMonthSort('asc')">低い順▲</button>
+      </div>
+    </div>
+    ${fundCards}`;
   buildFundsChart(displayFunds);
 }
 function switchFundsView(v){fundsView=v;destroyChart('funds');renderFunds();}
