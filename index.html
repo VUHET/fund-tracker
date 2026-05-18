@@ -517,8 +517,8 @@ function renderTotal(){
     const prevGlobal = globalIdx > 0 ? h[globalIdx - 1] : null;
     const dayChangePct = prevGlobal && d.total && prevGlobal.total
       ? ((d.total - prevGlobal.total) / prevGlobal.total * 100) : null;
-    const dayChangeAmt = prevGlobal && d.total && prevGlobal.total
-      ? (d.total - prevGlobal.total) : null;
+    const dayChangeAmt = prevGlobal && d.pnl != null && prevGlobal.pnl != null
+      ? (d.pnl - prevGlobal.pnl) : null;
     const dayChangeVal = dayChangeMode === "pct" ? dayChangePct : dayChangeAmt;
     const dayChangeStr = dayChangeMode === "pct"
       ? (dayChangePct!=null ? (dayChangePct>=0?"+":"")+dayChangePct.toFixed(2)+"%" : "—")
@@ -546,8 +546,8 @@ function renderTotal(){
       </div>
       <div style="display:flex;align-items:center;justify-content:flex-end;gap:6px;margin-top:10px">
         <span style="font-size:11px;color:#94a3b8">前日比：</span>
-        <button class="mbtn${dayChangeMode==='pct'?' active':''}" onclick="switchDayChangeMode('pct')">％</button>
-        <button class="mbtn${dayChangeMode==='amt'?' active':''}" onclick="switchDayChangeMode('amt')">金額</button>
+        <button class="mbtn${dayChangeMode==='pct'?' active':''}" onclick="switchDayChangeMode('pct')">評価額％</button>
+        <button class="mbtn${dayChangeMode==='amt'?' active':''}" onclick="switchDayChangeMode('amt')">含み益増減</button>
       </div>
       <table style="margin-top:6px">
         <thead><tr>
