@@ -488,7 +488,80 @@ function renderSummary(){
         </table>
         <div style="font-size:10px;color:#a78bfa;margin-top:8px">※ ${daysDiff}日間のデータをもとにした参考値です</div>
       </div>
+    </div>
+    <div class="card full" style="background:linear-gradient(135deg,#fef3c7,#fde68a);border-color:#fbbf24">
+      <div style="font-size:10px;color:#92400e;font-weight:700;letter-spacing:2px;margin-bottom:8px">💰 4%ルール（FIRE取り崩し試算）</div>
+      <div style="display:flex;gap:20px;flex-wrap:wrap">
+        <div>
+          <div style="font-size:10px;color:#92400e;margin-bottom:2px">年間取り崩し可能額</div>
+          <div style="font-size:20px;font-weight:900;color:#78350f">${fmt(Math.round(latest.total*0.04))}</div>
+        </div>
+        <div>
+          <div style="font-size:10px;color:#92400e;margin-bottom:2px">月間取り崩し可能額</div>
+          <div style="font-size:20px;font-weight:900;color:#78350f">${fmt(Math.round(latest.total*0.04/12))}</div>
+        </div>
+        <div style="font-size:10px;color:#b45309;line-height:1.8;align-self:flex-end">現在の評価額 × 4% ÷ 12</div>
+      </div>
+    </div>
+    <div class="card full">
+      <div style="font-size:10px;color:#64748b;font-weight:700;letter-spacing:2px;margin-bottom:10px">🚀💥 急騰・急落ランキング（前日比±3%以上）</div>
+      ${(()=>{
+        const alerts = h.slice(1).map((d,i)=>{
+          const prev = h[i];
+          const chg = prev.total ? (d.total-prev.total)/prev.total*100 : null;
+          return {date:d.date, chg};
+        }).filter(d=>d.chg!=null && Math.abs(d.chg)>=3);
+        const ups   = [...alerts].filter(d=>d.chg>0).sort((a,b)=>b.chg-a.chg).slice(0,5);
+        const downs = [...alerts].filter(d=>d.chg<0).sort((a,b)=>a.chg-b.chg).slice(0,5);
+        const rankHtml = (list,icon) => list.length ? list.map((d,i)=>`
+          <div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid #f1f5f9">
+            <span style="color:#64748b;font-size:12px">${i+1}. ${icon} ${d.date}</span>
+            <span style="font-weight:700;font-size:12px;color:${col(d.chg)}">${d.chg>=0?"+":""}${d.chg.toFixed(2)}%</span>
+          </div>`).join("") : `<div style="color:#94a3b8;font-size:12px">該当なし</div>`;
+        return `<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+          <div><div style="font-size:11px;font-weight:700;color:#0d9488;margin-bottom:6px">🚀 急騰TOP5</div>${rankHtml(ups,"🚀")}</div>
+          <div><div style="font-size:11px;font-weight:700;color:#e11d48;margin-bottom:6px">💥 急落TOP5</div>${rankHtml(downs,"💥")}</div>
+        </div>`;
+      })()}
+    </div>
+    <div class="card full">
+      <div style="font-size:10px;color:#64748b;font-weight:700;letter-spacing:2px;margin-bottom:10px">🍩 ポートフォリオ構成比</div>
+      <div style="position:relative;height:200px"><canvas id="donutChart"></canvas></div>
+      <div class="legend" style="margin-top:12px;justify-content:center">
+        ${DATA.funds.map(f=>{
+          const last = f.data.filter(d=>d.pnlPct!=null).slice(-1)[0];
+          const nav = last && f.cost_nav ? f.cost_nav*(1+last.pnlPct/100) : 0;
+          const ev = f.units && nav ? Math.round(f.units*nav/10000) : 0;
+          const pct = ev && latest.total ? (ev/latest.total*100).toFixed(1) : "—";
+          return `<div class="legend-item"><div class="legend-line" style="background:${f.color}"></div>${f.short} ${pct}%</div>`;
+        }).join("")}
+      </div>
     </div>`;
+
+  // ドーナッツチャート描画
+  setTimeout(()=>{
+    const ctx = document.getElementById('donutChart')?.getContext('2d');
+    if (!ctx) return;
+    destroyChart('donut');
+    const evals = DATA.funds.map(f=>{
+      const last = f.data.filter(d=>d.pnlPct!=null).slice(-1)[0];
+      const nav = last && f.cost_nav ? f.cost_nav*(1+last.pnlPct/100) : 0;
+      return f.units && nav ? Math.round(f.units*nav/10000) : 0;
+    });
+    charts['donut'] = new Chart(ctx,{
+      type:'doughnut',
+      data:{
+        labels: DATA.funds.map(f=>f.short),
+        datasets:[{data:evals, backgroundColor:DATA.funds.map(f=>f.color),
+          borderColor:'#fff', borderWidth:2}]
+      },
+      options:{responsive:true, maintainAspectRatio:false,
+        plugins:{legend:{display:false},
+          tooltip:{callbacks:{label:c=>`${c.label}：${fmt(c.raw)}（${(c.raw/evals.reduce((a,b)=>a+b,0)*100).toFixed(1)}%）`}}
+        }
+      }
+    });
+  }, 50);
 
   // ドラムロール初期化
   updateRangeResult();
@@ -528,17 +601,22 @@ function renderTotal(){
       ? (dayChangePnlPct!=null ? (dayChangePnlPct>=0?"+":"")+dayChangePnlPct.toFixed(2)+"%" : "—")
       : (dayChangeAmt!=null ? fmtSigned(dayChangeAmt) : "—");
 
-    // ±3%以上でハイライト
-    const isAlert = dayChangePct != null && Math.abs(dayChangePct) >= 3;
-    const alertBg = isAlert ? (dayChangePct > 0 ? "rgba(16,185,129,0.08)" : "rgba(244,63,94,0.08)") : "transparent";
-    const alertBorder = isAlert ? (dayChangePct > 0 ? "2px solid rgba(16,185,129,0.3)" : "2px solid rgba(244,63,94,0.3)") : "none";
-    const alertIcon = isAlert ? (dayChangePct > 0 ? "🚀" : "💥") : "";
-    return `<tr style="border-bottom:1px solid #eff6ff;background:${alertBg};outline:${alertBorder};border-radius:6px">
-      <td style="color:#64748b;padding:7px 8px">${alertIcon} ${d.date}</td>
-      <td style="font-weight:600;color:#1e293b;padding:7px 8px;text-align:right">${fmt(d.total)}</td>
-      <td style="font-weight:600;color:${col(d.pnl)};padding:7px 8px;text-align:right">${fmtSigned(d.pnl)}</td>
-      <td style="font-weight:700;color:${col(d.pnlPct)};padding:7px 8px;text-align:right">${fmtPct(d.pnlPct)}</td>
-      <td style="font-weight:${isAlert?"800":"600"};color:${col(dayChangeVal)};padding:7px 8px;text-align:right">${dayChangeStr}</td>
+    // アラート判定：表示中の指標で判定
+    const alertVal = dayChangeMode === "pct" ? dayChangePct
+                   : dayChangeMode === "pnlPct" ? dayChangePnlPct
+                   : dayChangeAmt != null && d.pnl != null ? dayChangeAmt / Math.abs(d.pnl) * 100 : null;
+    const isAlert = alertVal != null && Math.abs(alertVal) >= 3;
+    const isUp = alertVal != null && alertVal > 0;
+    const alertBg = isAlert ? (isUp ? "rgba(16,185,129,0.08)" : "rgba(244,63,94,0.08)") : "transparent";
+    const alertBorder = isAlert ? (isUp ? "2px solid rgba(16,185,129,0.3)" : "2px solid rgba(244,63,94,0.3)") : "none";
+    const alertIcon = isAlert ? (isUp ? "🚀" : "💥") : "　";
+    return `<tr style="border-bottom:1px solid #eff6ff;background:${alertBg};outline:${alertBorder}">
+      <td style="color:#64748b;padding:7px 4px;white-space:nowrap">${alertIcon}</td>
+      <td style="color:#64748b;padding:7px 4px">${d.date}</td>
+      <td style="font-weight:600;color:#1e293b;padding:7px 4px;text-align:right">${fmt(d.total)}</td>
+      <td style="font-weight:600;color:${col(d.pnl)};padding:7px 4px;text-align:right">${fmtSigned(d.pnl)}</td>
+      <td style="font-weight:700;color:${col(d.pnlPct)};padding:7px 4px;text-align:right">${fmtPct(d.pnlPct)}</td>
+      <td style="font-weight:${isAlert?"800":"600"};color:${col(dayChangeVal)};padding:7px 4px;text-align:right">${dayChangeStr}</td>
     </tr>`;
   }).join("");
 
@@ -562,6 +640,7 @@ function renderTotal(){
       </div>
       <table style="margin-top:6px">
         <thead><tr>
+          <th style="width:24px"></th>
           <th>日付</th><th>評価額</th><th>含み損益</th><th>損益率</th><th>前日比</th>
         </tr></thead>
         <tbody>${rows}</tbody>
