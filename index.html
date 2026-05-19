@@ -572,7 +572,7 @@ function renderTabs(){
   document.getElementById('mainTabs').innerHTML=[["total","全期間"],["monthly","月別"],["funds","ファンド別"]]
     .map(([k,l])=>`<button class="tab${mainTab===k?" active":""}" onclick="switchMain('${k}')">${l}</button>`).join("");
 }
-function switchMain(t){mainTab=t;Object.keys(charts).forEach(destroyChart);renderTabs();renderContent();}
+function switchMain(t){mainTab=t;Object.keys(charts).filter(k=>k!=='donut').forEach(destroyChart);renderTabs();renderContent();}
 function renderContent(){
   if(mainTab==="total")renderTotal();
   else if(mainTab==="monthly")renderMonthly();
