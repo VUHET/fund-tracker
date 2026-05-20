@@ -792,21 +792,44 @@ function renderFunds(){
     const firstNav = ff  && f.cost_nav ? f.cost_nav*(1+ff.pnlPct/100)  : null;
     const monthPnl = f.units && lastNav && firstNav ? Math.round(f.units*(lastNav-firstNav)/10000) : null;
     const curPnl   = f.units && f.cost_nav && lastNav ? Math.round(f.units*(lastNav-f.cost_nav)/10000) : null;
-    return { f, lf, ff, diff, monthPnl, curPnl };
+
+    // ドローダウン計算（全データの最高pnlPctからの下落率）
+    const allValid = f.data.filter(d=>d.pnlPct!=null);
+    const maxPnlPct = allValid.length ? Math.max(...allValid.map(d=>d.pnlPct)) : null;
+    const maxDate = maxPnlPct!=null ? allValid.find(d=>d.pnlPct===maxPnlPct)?.date : null;
+    const currentPnlPct = lf?.pnlPct ?? null;
+    // ドローダウン = (現在価値 - 最高値) / 最高値 × 100
+    const maxNav = maxPnlPct!=null && f.cost_nav ? f.cost_nav*(1+maxPnlPct/100) : null;
+    const curNav = currentPnlPct!=null && f.cost_nav ? f.cost_nav*(1+currentPnlPct/100) : null;
+    const drawdown = maxNav && curNav ? ((curNav - maxNav) / maxNav * 100) : null;
+    // アラートレベル
+    const ddAbs = drawdown!=null ? Math.abs(drawdown) : 0;
+    const ddAlert = ddAbs >= 30 ? {level:"🔴 -30%超！", color:"#dc2626", bg:"rgba(220,38,38,0.08)"}
+                  : ddAbs >= 20 ? {level:"🟠 -20%超", color:"#ea580c", bg:"rgba(234,88,12,0.08)"}
+                  : ddAbs >= 10 ? {level:"🟡 -10%超", color:"#ca8a04", bg:"rgba(202,138,4,0.08)"}
+                  : null;
+
+    return { f, lf, ff, diff, monthPnl, curPnl, drawdown, maxPnlPct, maxDate, ddAlert };
   });
 
   if (monthSortOrder==="desc") fundList.sort((a,b)=>(b.lf?.pnlPct??-999)-(a.lf?.pnlPct??-999));
   else if (monthSortOrder==="asc") fundList.sort((a,b)=>(a.lf?.pnlPct??999)-(b.lf?.pnlPct??999));
 
-  const fundCards = fundList.map(({f, lf, diff, monthPnl, curPnl}) => {
-    return `<div class="fund-card" style="border-left:3px solid ${f.color}">
-      <div style="font-size:13px;font-weight:700">${f.name}</div>
+  const fundCards = fundList.map(({f, lf, diff, monthPnl, curPnl, drawdown, maxPnlPct, maxDate, ddAlert}) => {
+    const ddStr = drawdown!=null ? (drawdown>=0?"±0":drawdown.toFixed(2)+"%") : "—";
+    const ddColor = drawdown!=null && drawdown < 0 ? "#e11d48" : "#0d9488";
+    return `<div class="fund-card" style="border-left:3px solid ${f.color};${ddAlert?`background:${ddAlert.bg};`:""}">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px">
+        <div style="font-size:13px;font-weight:700">${f.name}</div>
+        ${ddAlert ? `<div style="font-size:11px;font-weight:800;color:${ddAlert.color};background:white;padding:2px 8px;border-radius:20px;border:1px solid ${ddAlert.color};white-space:nowrap">${ddAlert.level} 買い増しチャンス！</div>` : ""}
+      </div>
       <div class="fund-stats">
         <div><div class="card-label">${fundsView==="total"?"最新":"月末"}損益率</div><div style="font-size:17px;font-weight:800;color:${col(lf?.pnlPct)}">${fmtPct(lf?.pnlPct)}</div></div>
         <div><div class="card-label">${isMonth?"月内変化":"期間変化"}</div><div style="font-size:15px;font-weight:700;color:${col(diff)}">${diff!=null?(diff>=0?"+":"")+diff.toFixed(2)+"%":"—"}</div></div>
         ${isMonth && monthPnl!=null ? `<div><div class="card-label">月間損益</div><div style="font-size:15px;font-weight:700;color:${col(monthPnl)}">${fmtSigned(monthPnl)}</div></div>` : ""}
         ${curPnl!=null ? `<div><div class="card-label">含み益</div><div style="font-size:15px;font-weight:700;color:${col(curPnl)}">${fmtSigned(curPnl)}</div></div>` : ""}
         <div><div class="card-label">基準価額</div><div style="font-size:13px;font-weight:600;color:#64748b">${fmt(lf?.nav)}</div></div>
+        <div><div class="card-label">最高値比（DD）</div><div style="font-size:13px;font-weight:700;color:${ddColor}">${ddStr}${maxDate?`<span style="font-size:10px;color:#94a3b8;margin-left:4px">最高:${maxDate}</span>`:""}</div></div>
       </div></div>`;
   }).join("");
 
