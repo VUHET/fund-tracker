@@ -39,7 +39,8 @@ if('serviceWorker' in navigator){
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0;}
-body{background:#f0f7ff;color:#1e293b;font-family:'Helvetica Neue',sans-serif;padding-bottom:80px;font-size:14px;overflow-x:hidden;}
+html{overflow-x:hidden;max-width:100%;}
+body{background:#f0f7ff;color:#1e293b;font-family:'Helvetica Neue',sans-serif;padding-bottom:80px;font-size:14px;overflow-x:hidden;max-width:100vw;}
 
 /* ロック画面 */
 #lockScreen{
@@ -426,32 +427,32 @@ function renderSummary(){
       </div>
       <div style="border-top:1px solid #c4b5fd;padding-top:10px">
         <div style="font-size:10px;color:#7c3aed;font-weight:700;margin-bottom:8px">年末（12/31）・1年後の評価額予測</div>
-        <table style="width:100%;font-size:11px;border-collapse:collapse">
+        <table style="width:100%;font-size:10px;border-collapse:collapse;table-layout:fixed;word-break:break-all">
           <thead>
             <tr style="border-bottom:1px solid #c4b5fd">
-              <th style="text-align:left;color:#a78bfa;font-weight:600;padding:4px 0">手法</th>
-              <th style="text-align:right;color:#a78bfa;font-weight:600;padding:4px 0">年末（残${daysToYearEnd}日）</th>
-              <th style="text-align:right;color:#a78bfa;font-weight:600;padding:4px 0">1年後</th>
+              <th style="text-align:left;color:#a78bfa;font-weight:600;padding:4px 2px">手法</th>
+              <th style="text-align:right;color:#a78bfa;font-weight:600;padding:4px 2px">年末（残${daysToYearEnd}日）</th>
+              <th style="text-align:right;color:#a78bfa;font-weight:600;padding:4px 2px">1年後</th>
             </tr>
           </thead>
           <tbody>
             ${[["cagr","① CAGR",cagr],["ma","② 移動平均",maReturn],["vol","③ ボラ調整",volAdjReturn]].map(([key,label,val])=>`
             <tr style="border-bottom:1px solid rgba(196,181,253,0.3);background:${returnMethod===key?"rgba(109,40,217,0.08)":"transparent"}">
-              <td style="color:#7c3aed;padding:5px 0;font-weight:${returnMethod===key?"800":"400"}">${label}${returnMethod===key?" ✓":""}</td>
-              <td style="text-align:right;font-weight:700;color:#4c1d95;padding:5px 0">${fmt(yearEndProj(val))}</td>
-              <td style="text-align:right;font-weight:700;color:#4c1d95;padding:5px 0">${fmt(proj1y(val))}</td>
+              <td style="color:#7c3aed;padding:5px 2px;font-weight:${returnMethod===key?"800":"400"}">${label}${returnMethod===key?" ✓":""}</td>
+              <td style="text-align:right;font-weight:700;color:#4c1d95;padding:5px 2px">${fmt(yearEndProj(val))}</td>
+              <td style="text-align:right;font-weight:700;color:#4c1d95;padding:5px 2px">${fmt(proj1y(val))}</td>
             </tr>`).join("")}
           </tbody>
         </table>
 
         <div style="font-size:10px;color:#7c3aed;font-weight:700;margin-top:14px;margin-bottom:8px">ファンド別 現在の損益・年末・1年後予測</div>
-        <table style="width:100%;font-size:11px;border-collapse:collapse">
+        <table style="width:100%;font-size:10px;border-collapse:collapse;table-layout:fixed;word-break:break-all">
           <thead>
             <tr style="border-bottom:1px solid #c4b5fd">
-              <th style="text-align:left;color:#a78bfa;font-weight:600;padding:4px 0">ファンド</th>
-              <th style="text-align:right;color:#a78bfa;font-weight:600;padding:4px 0">現在の評価額</th>
-              <th style="text-align:right;color:#a78bfa;font-weight:600;padding:4px 0">年末</th>
-              <th style="text-align:right;color:#a78bfa;font-weight:600;padding:4px 0">1年後</th>
+              <th style="text-align:left;color:#a78bfa;font-weight:600;padding:4px 2px">ファンド</th>
+              <th style="text-align:right;color:#a78bfa;font-weight:600;padding:4px 2px">現在</th>
+              <th style="text-align:right;color:#a78bfa;font-weight:600;padding:4px 2px">年末</th>
+              <th style="text-align:right;color:#a78bfa;font-weight:600;padding:4px 2px">1年後</th>
             </tr>
           </thead>
           <tbody>
@@ -494,10 +495,10 @@ function renderSummary(){
               const fYearEnd = Math.round(evalNow * (1+fRate/100)**(daysToYearEnd/365));
               const f1y = Math.round(evalNow * (1+fRate/100));
               return `<tr style="border-bottom:1px solid rgba(196,181,253,0.3)">
-                <td style="padding:5px 0"><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${f.color};margin-right:4px"></span><span style="color:#4c1d95;font-weight:600">${f.short}</span></td>
-                <td style="text-align:right;font-weight:700;color:#4c1d95;padding:5px 0">${fmt(evalNow)}</td>
-                <td style="text-align:right;font-weight:700;color:#4c1d95;padding:5px 0">${fmt(fYearEnd)}</td>
-                <td style="text-align:right;font-weight:700;color:#4c1d95;padding:5px 0">${fmt(f1y)}</td>
+                <td style="padding:5px 2px"><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${f.color};margin-right:4px"></span><span style="color:#4c1d95;font-weight:600">${f.short}</span></td>
+                <td style="text-align:right;font-weight:700;color:#4c1d95;padding:5px 2px">${fmt(evalNow)}</td>
+                <td style="text-align:right;font-weight:700;color:#4c1d95;padding:5px 2px">${fmt(fYearEnd)}</td>
+                <td style="text-align:right;font-weight:700;color:#4c1d95;padding:5px 2px">${fmt(f1y)}</td>
               </tr>`;
             }).join("")}
           </tbody>
@@ -543,7 +544,7 @@ function renderSummary(){
     <div class="card full">
       <div style="font-size:10px;color:#64748b;font-weight:700;letter-spacing:2px;margin-bottom:10px">📅 月次サマリー</div>
       <div class="scroll-x">
-        <table style="width:100%;font-size:11px;border-collapse:collapse;min-width:320px">
+        <table style="width:100%;font-size:10px;border-collapse:collapse;table-layout:fixed">
           <thead>
             <tr style="border-bottom:2px solid #bfdbfe">
               <th style="text-align:left;color:#64748b;padding:5px 6px;font-weight:700">月</th>
@@ -692,10 +693,10 @@ function renderTotal(){
         <button class="mbtn${dayChangeMode==='amt'?' active':''}" onclick="switchDayChangeMode('amt')">含み益増減</button>
         <button class="mbtn${dayChangeMode==='pnlPct'?' active':''}" onclick="switchDayChangeMode('pnlPct')">含み益増減％</button>
       </div>
-      <table style="margin-top:6px">
+      <table style="margin-top:6px;table-layout:fixed;font-size:11px">
         <thead><tr>
-          <th style="width:24px"></th>
-          <th>日付</th><th>評価額</th><th>含み損益</th><th>損益率</th><th>前日比</th>
+          <th style="width:20px"></th>
+          <th style="width:14%">日付</th><th>評価額</th><th>含み損益</th><th style="width:14%">損益率</th><th style="width:16%">前日比</th>
         </tr></thead>
         <tbody>${rows}</tbody>
       </table>
@@ -1097,15 +1098,15 @@ function renderCorrMatrix() {
   }
 
   const size = funds.length;
-  let html = `<table style="border-collapse:collapse;font-size:11px;width:100%">`;
-  html += `<thead><tr><th style="padding:6px 8px"></th>${funds.map(f=>`<th style="padding:6px 8px;color:#64748b;font-weight:700;text-align:center;max-width:80px;word-break:break-all">${f.short}</th>`).join("")}</tr></thead><tbody>`;
+  let html = `<table style="border-collapse:collapse;font-size:11px;width:100%;table-layout:fixed">`;
+  html += `<thead><tr><th style="padding:4px 4px"></th>${funds.map(f=>`<th style="padding:4px 4px;color:#64748b;font-weight:700;text-align:center;word-break:break-all;font-size:10px">${f.short}</th>`).join("")}</tr></thead><tbody>`;
   for (let i = 0; i < size; i++) {
     html += `<tr><td style="padding:6px 8px;font-weight:700;color:#64748b;white-space:nowrap">${funds[i].short}</td>`;
     for (let j = 0; j < size; j++) {
       const v = i === j ? 1 : corr(series[i], series[j]);
       const bg = corrColor(v);
       const tc = corrTextColor(v);
-      html += `<td style="padding:8px 10px;text-align:center;background:${bg};color:${tc};font-weight:${i===j?900:700};border-radius:4px;border:1px solid #f0f7ff">${v!=null?v.toFixed(2):"—"}</td>`;
+      html += `<td style="padding:6px 4px;text-align:center;background:${bg};color:${tc};font-weight:${i===j?900:700};border-radius:3px;border:1px solid #f0f7ff;font-size:11px">${v!=null?v.toFixed(2):"—"}</td>`;
     }
     html += `</tr>`;
   }
