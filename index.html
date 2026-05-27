@@ -39,8 +39,16 @@ if('serviceWorker' in navigator){
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0;}
-html{overflow-x:hidden;max-width:100%;}
-body{background:#f0f7ff;color:#1e293b;font-family:'Helvetica Neue',sans-serif;padding-bottom:80px;font-size:14px;overflow-x:hidden;max-width:100vw;}
+html,body{max-width:100%;overflow-x:hidden;}
+body{background:#f0f7ff;color:#1e293b;font-family:'Helvetica Neue',sans-serif;padding-bottom:80px;font-size:14px;}
+.tbl-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;width:100%;}
+.tbl-wrap table{min-width:420px;}
+.sim-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;}
+.sim-result{display:grid;grid-template-columns:1fr 1fr;gap:8px;padding:12px;background:#f0f9ff;border-radius:10px;border:1px solid #bae6fd;}
+.hist-stats{display:flex;gap:12px;flex-wrap:wrap;}
+.hist-stat{flex:1 1 calc(50% - 6px);min-width:0;}
+.corr-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;width:100%;}
+input[type=number]{box-sizing:border-box;width:100%;}
 
 /* ロック画面 */
 #lockScreen{
@@ -84,22 +92,11 @@ td{padding:7px 8px;text-align:right;border-bottom:1px solid #eff6ff;}
 .legend{display:flex;flex-wrap:wrap;gap:8px 14px;margin-top:10px;}
 .legend-item{display:flex;align-items:center;gap:5px;font-size:11px;color:#64748b;}
 .legend-line{width:12px;height:3px;border-radius:2px;}
-select{background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;color:#1e40af;padding:6px 8px;font-size:13px;cursor:pointer;font-weight:600;max-width:100%;}
-.date-picker{display:flex;flex-direction:column;gap:6px;flex:1;min-width:0;}
+select{background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;color:#1e40af;padding:6px 8px;font-size:13px;cursor:pointer;font-weight:600;}
+.date-picker{display:flex;flex-direction:column;gap:6px;flex:1;}
 .date-picker-label{font-size:10px;color:#94a3b8;font-weight:600;}
 .date-picker-selects{display:flex;gap:4px;}
-.date-picker-selects select{flex:1;min-width:0;}
-input[type=number]{-moz-appearance:textfield;box-sizing:border-box;}
-input[type=number]::-webkit-inner-spin-button,input[type=number]::-webkit-outer-spin-button{opacity:1;}
-.sim-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;}
-@media(max-width:400px){.sim-grid{grid-template-columns:1fr 1fr;}}
-.scroll-x{overflow-x:auto;-webkit-overflow-scrolling:touch;max-width:100%;}
-.scroll-x table{min-width:320px;}
-.corr-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;max-width:100%;}
-.hist-stats{display:flex;gap:12px;flex-wrap:wrap;}
-.hist-stat{min-width:0;flex:1 1 calc(50% - 6px);}
-.sim-result{display:grid;grid-template-columns:1fr 1fr;gap:8px;padding:12px;background:#f0f9ff;border-radius:10px;border:1px solid #bae6fd;}
-@media(max-width:360px){.sim-result{grid-template-columns:1fr;}}
+.date-picker-selects select{flex:1;}
 
 /* データ更新モーダル */
 .modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.4);z-index:100;align-items:center;justify-content:center;padding:16px;}
@@ -404,13 +401,13 @@ function renderSummary(){
       </div>
       <div id="rangeResult">
       ${(()=>{
-        const pnlChange2 = rsData&&reData&&rsData.pnl!=null&&reData.pnl!=null ? reData.pnl-rsData.pnl : null;
-        const pnlPctChange2 = rsData&&pnlChange2!=null&&rsData.pnl!=null&&rsData.pnl!==0 ? pnlChange2/Math.abs(rsData.pnl)*100 : null;
+        const pnlC = rsData&&reData&&rsData.pnl!=null&&reData.pnl!=null ? reData.pnl-rsData.pnl : null;
+        const pnlCpct = pnlC!=null&&rsData.pnl!==0 ? pnlC/Math.abs(rsData.pnl)*100 : null;
         return rChange!=null?`<div style="display:flex;gap:16px;flex-wrap:wrap">
           <div><div class="card-label">評価額変化</div><div style="font-size:18px;font-weight:800;color:${col(rChange)}">${fmtSigned(rChange)}</div></div>
           <div><div class="card-label">変化率</div><div style="font-size:18px;font-weight:800;color:${col(rPct)}">${fmtPct(rPct)}</div></div>
-          ${pnlChange2!=null?`<div style="border-left:2px solid #bfdbfe;padding-left:16px"><div class="card-label">含み益変化</div><div style="font-size:18px;font-weight:800;color:${col(pnlChange2)}">${fmtSigned(pnlChange2)}</div>${pnlPctChange2!=null?`<div style="font-size:11px;color:${col(pnlPctChange2)}">${fmtPct(pnlPctChange2)}</div>`:""}</div>`:""}
-          <div><div class="card-label">開始時評価額</div><div style="font-size:13px;font-weight:600;color:#64748b">${fmt(rsData?.total)}</div>${rsData?.pnl!=null?`<div style="font-size:11px;color:#94a3b8">含み益 ${fmtSigned(rsData.pnl)}</div>`:""}</div>
+          ${pnlC!=null?`<div><div class="card-label">含み益変化</div><div style="font-size:18px;font-weight:800;color:${col(pnlC)}">${fmtSigned(pnlC)}</div>${pnlCpct!=null?`<div style="font-size:11px;color:${col(pnlCpct)}">${fmtPct(pnlCpct)}</div>`:""}</div>`:""}
+          <div><div class="card-label">開始時評価額</div><div style="font-size:13px;font-weight:600;color:#64748b">${fmt(rsData?.total)}</div></div>
         </div>`:'<div style="font-size:12px;color:#94a3b8">同じ日付が選択されています</div>';
       })()}
       </div>
@@ -427,32 +424,32 @@ function renderSummary(){
       </div>
       <div style="border-top:1px solid #c4b5fd;padding-top:10px">
         <div style="font-size:10px;color:#7c3aed;font-weight:700;margin-bottom:8px">年末（12/31）・1年後の評価額予測</div>
-        <table style="width:100%;font-size:10px;border-collapse:collapse;table-layout:fixed;word-break:break-all">
+        <table style="width:100%;font-size:11px;border-collapse:collapse">
           <thead>
             <tr style="border-bottom:1px solid #c4b5fd">
-              <th style="text-align:left;color:#a78bfa;font-weight:600;padding:4px 2px">手法</th>
-              <th style="text-align:right;color:#a78bfa;font-weight:600;padding:4px 2px">年末（残${daysToYearEnd}日）</th>
-              <th style="text-align:right;color:#a78bfa;font-weight:600;padding:4px 2px">1年後</th>
+              <th style="text-align:left;color:#a78bfa;font-weight:600;padding:4px 0">手法</th>
+              <th style="text-align:right;color:#a78bfa;font-weight:600;padding:4px 0">年末（残${daysToYearEnd}日）</th>
+              <th style="text-align:right;color:#a78bfa;font-weight:600;padding:4px 0">1年後</th>
             </tr>
           </thead>
           <tbody>
             ${[["cagr","① CAGR",cagr],["ma","② 移動平均",maReturn],["vol","③ ボラ調整",volAdjReturn]].map(([key,label,val])=>`
             <tr style="border-bottom:1px solid rgba(196,181,253,0.3);background:${returnMethod===key?"rgba(109,40,217,0.08)":"transparent"}">
-              <td style="color:#7c3aed;padding:5px 2px;font-weight:${returnMethod===key?"800":"400"}">${label}${returnMethod===key?" ✓":""}</td>
-              <td style="text-align:right;font-weight:700;color:#4c1d95;padding:5px 2px">${fmt(yearEndProj(val))}</td>
-              <td style="text-align:right;font-weight:700;color:#4c1d95;padding:5px 2px">${fmt(proj1y(val))}</td>
+              <td style="color:#7c3aed;padding:5px 0;font-weight:${returnMethod===key?"800":"400"}">${label}${returnMethod===key?" ✓":""}</td>
+              <td style="text-align:right;font-weight:700;color:#4c1d95;padding:5px 0">${fmt(yearEndProj(val))}</td>
+              <td style="text-align:right;font-weight:700;color:#4c1d95;padding:5px 0">${fmt(proj1y(val))}</td>
             </tr>`).join("")}
           </tbody>
         </table>
 
         <div style="font-size:10px;color:#7c3aed;font-weight:700;margin-top:14px;margin-bottom:8px">ファンド別 現在の損益・年末・1年後予測</div>
-        <table style="width:100%;font-size:10px;border-collapse:collapse;table-layout:fixed;word-break:break-all">
+        <table style="width:100%;font-size:11px;border-collapse:collapse">
           <thead>
             <tr style="border-bottom:1px solid #c4b5fd">
-              <th style="text-align:left;color:#a78bfa;font-weight:600;padding:4px 2px">ファンド</th>
-              <th style="text-align:right;color:#a78bfa;font-weight:600;padding:4px 2px">現在</th>
-              <th style="text-align:right;color:#a78bfa;font-weight:600;padding:4px 2px">年末</th>
-              <th style="text-align:right;color:#a78bfa;font-weight:600;padding:4px 2px">1年後</th>
+              <th style="text-align:left;color:#a78bfa;font-weight:600;padding:4px 0">ファンド</th>
+              <th style="text-align:right;color:#a78bfa;font-weight:600;padding:4px 0">現在の評価額</th>
+              <th style="text-align:right;color:#a78bfa;font-weight:600;padding:4px 0">年末</th>
+              <th style="text-align:right;color:#a78bfa;font-weight:600;padding:4px 0">1年後</th>
             </tr>
           </thead>
           <tbody>
@@ -495,10 +492,10 @@ function renderSummary(){
               const fYearEnd = Math.round(evalNow * (1+fRate/100)**(daysToYearEnd/365));
               const f1y = Math.round(evalNow * (1+fRate/100));
               return `<tr style="border-bottom:1px solid rgba(196,181,253,0.3)">
-                <td style="padding:5px 2px"><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${f.color};margin-right:4px"></span><span style="color:#4c1d95;font-weight:600">${f.short}</span></td>
-                <td style="text-align:right;font-weight:700;color:#4c1d95;padding:5px 2px">${fmt(evalNow)}</td>
-                <td style="text-align:right;font-weight:700;color:#4c1d95;padding:5px 2px">${fmt(fYearEnd)}</td>
-                <td style="text-align:right;font-weight:700;color:#4c1d95;padding:5px 2px">${fmt(f1y)}</td>
+                <td style="padding:5px 0"><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${f.color};margin-right:4px"></span><span style="color:#4c1d95;font-weight:600">${f.short}</span></td>
+                <td style="text-align:right;font-weight:700;color:#4c1d95;padding:5px 0">${fmt(evalNow)}</td>
+                <td style="text-align:right;font-weight:700;color:#4c1d95;padding:5px 0">${fmt(fYearEnd)}</td>
+                <td style="text-align:right;font-weight:700;color:#4c1d95;padding:5px 0">${fmt(f1y)}</td>
               </tr>`;
             }).join("")}
           </tbody>
@@ -543,36 +540,35 @@ function renderSummary(){
     </div>
     <div class="card full">
       <div style="font-size:10px;color:#64748b;font-weight:700;letter-spacing:2px;margin-bottom:10px">📅 月次サマリー</div>
-      <div class="scroll-x">
-        <table style="width:100%;font-size:10px;border-collapse:collapse;table-layout:fixed">
+      <div class="tbl-wrap">
+        <table style="font-size:11px;border-collapse:collapse">
           <thead>
             <tr style="border-bottom:2px solid #bfdbfe">
-              <th style="text-align:left;color:#64748b;padding:5px 6px;font-weight:700">月</th>
-              <th style="text-align:right;color:#64748b;padding:5px 6px;font-weight:700">月末評価額</th>
-              <th style="text-align:right;color:#64748b;padding:5px 6px;font-weight:700">評価額増減</th>
-              <th style="text-align:right;color:#64748b;padding:5px 6px;font-weight:700">月末含み益</th>
-              <th style="text-align:right;color:#64748b;padding:5px 6px;font-weight:700">含み益増減</th>
-              <th style="text-align:right;color:#64748b;padding:5px 6px;font-weight:700">損益率</th>
+              <th style="text-align:left;color:#64748b;padding:5px 8px;font-weight:700;white-space:nowrap">月</th>
+              <th style="color:#64748b;padding:5px 8px;font-weight:700;white-space:nowrap">月末評価額</th>
+              <th style="color:#64748b;padding:5px 8px;font-weight:700;white-space:nowrap">評価額増減</th>
+              <th style="color:#64748b;padding:5px 8px;font-weight:700;white-space:nowrap">月末含み益</th>
+              <th style="color:#64748b;padding:5px 8px;font-weight:700;white-space:nowrap">含み益増減</th>
+              <th style="color:#64748b;padding:5px 8px;font-weight:700;white-space:nowrap">損益率</th>
             </tr>
           </thead>
           <tbody>
           ${(()=>{
-            const months2 = getMonths();
-            return months2.map((m, mi) => {
-              const mData2 = h.filter(d=>getMonth(d.date)===m);
-              const mLast2 = mData2[mData2.length-1];
-              const prevMonthData = mi > 0 ? h.filter(d=>getMonth(d.date)===months2[mi-1]) : [];
-              const prevLast2 = prevMonthData[prevMonthData.length-1];
-              const evalChange = mLast2&&prevLast2 ? mLast2.total-prevLast2.total : null;
-              const pnlChangem = mLast2&&prevLast2&&mLast2.pnl!=null&&prevLast2.pnl!=null ? mLast2.pnl-prevLast2.pnl : null;
-              const isLatest = mi===months2.length-1;
-              return `<tr style="border-bottom:1px solid #eff6ff;background:${isLatest?"rgba(59,130,246,0.04)":"transparent"}">
-                <td style="padding:6px 6px;font-weight:${isLatest?"800":"600"};color:${isLatest?"#1e3a5f":"#475569"}">${m}${isLatest?" ✦":""}</td>
-                <td style="text-align:right;padding:6px 6px;font-weight:600;color:#1e293b">${fmt(mLast2?.total)}</td>
-                <td style="text-align:right;padding:6px 6px;font-weight:700;color:${col(evalChange)}">${evalChange!=null?fmtSigned(evalChange):"—"}</td>
-                <td style="text-align:right;padding:6px 6px;font-weight:600;color:${col(mLast2?.pnl)}">${fmtSigned(mLast2?.pnl)}</td>
-                <td style="text-align:right;padding:6px 6px;font-weight:700;color:${col(pnlChangem)}">${pnlChangem!=null?fmtSigned(pnlChangem):"—"}</td>
-                <td style="text-align:right;padding:6px 6px;font-weight:700;color:${col(mLast2?.pnlPct)}">${fmtPct(mLast2?.pnlPct)}</td>
+            const ms = getMonths();
+            return ms.map((m,mi)=>{
+              const md = h.filter(d=>getMonth(d.date)===m);
+              const ml = md[md.length-1];
+              const pl = mi>0 ? h.filter(d=>getMonth(d.date)===ms[mi-1]).slice(-1)[0] : null;
+              const ec = ml&&pl ? ml.total-pl.total : null;
+              const pc = ml&&pl&&ml.pnl!=null&&pl.pnl!=null ? ml.pnl-pl.pnl : null;
+              const isL = mi===ms.length-1;
+              return `<tr style="border-bottom:1px solid #eff6ff;background:${isL?"rgba(59,130,246,0.04)":""}">
+                <td style="padding:6px 8px;font-weight:${isL?800:600};color:${isL?"#1e3a5f":"#475569"};white-space:nowrap">${m}${isL?" ✦":""}</td>
+                <td style="text-align:right;padding:6px 8px;font-weight:600;color:#1e293b;white-space:nowrap">${fmt(ml?.total)}</td>
+                <td style="text-align:right;padding:6px 8px;font-weight:700;color:${col(ec)};white-space:nowrap">${ec!=null?fmtSigned(ec):"—"}</td>
+                <td style="text-align:right;padding:6px 8px;font-weight:600;color:${col(ml?.pnl)};white-space:nowrap">${fmtSigned(ml?.pnl)}</td>
+                <td style="text-align:right;padding:6px 8px;font-weight:700;color:${col(pc)};white-space:nowrap">${pc!=null?fmtSigned(pc):"—"}</td>
+                <td style="text-align:right;padding:6px 8px;font-weight:700;color:${col(ml?.pnlPct)};white-space:nowrap">${fmtPct(ml?.pnlPct)}</td>
               </tr>`;
             }).join("");
           })()}
@@ -580,6 +576,8 @@ function renderSummary(){
         </table>
       </div>
     </div>
+    <div class="card full">
+      <div style="font-size:10px;color:#64748b;font-weight:700;letter-spacing:2px;margin-bottom:10px">🍩 ポートフォリオ構成比</div>
       <div style="position:relative;height:200px"><canvas id="donutChart"></canvas></div>
       <div class="legend" style="margin-top:12px;justify-content:center">
         ${DATA.funds.map(f=>{
@@ -667,11 +665,11 @@ function renderTotal(){
     const alertIcon = isAlert ? (isUp ? "🚀" : "💥") : "　";
     return `<tr style="border-bottom:1px solid #eff6ff;background:${alertBg};outline:${alertBorder}">
       <td style="color:#64748b;padding:7px 4px;white-space:nowrap">${alertIcon}</td>
-      <td style="color:#64748b;padding:7px 4px">${d.date}</td>
-      <td style="font-weight:600;color:#1e293b;padding:7px 4px;text-align:right">${fmt(d.total)}</td>
-      <td style="font-weight:600;color:${col(d.pnl)};padding:7px 4px;text-align:right">${fmtSigned(d.pnl)}</td>
-      <td style="font-weight:700;color:${col(d.pnlPct)};padding:7px 4px;text-align:right">${fmtPct(d.pnlPct)}</td>
-      <td style="font-weight:${isAlert?"800":"600"};color:${col(dayChangeVal)};padding:7px 4px;text-align:right">${dayChangeStr}</td>
+      <td style="color:#64748b;padding:7px 4px;white-space:nowrap">${d.date}</td>
+      <td style="font-weight:600;color:#1e293b;padding:7px 4px;text-align:right;white-space:nowrap">${fmt(d.total)}</td>
+      <td style="font-weight:600;color:${col(d.pnl)};padding:7px 4px;text-align:right;white-space:nowrap">${fmtSigned(d.pnl)}</td>
+      <td style="font-weight:700;color:${col(d.pnlPct)};padding:7px 4px;text-align:right;white-space:nowrap">${fmtPct(d.pnlPct)}</td>
+      <td style="font-weight:${isAlert?"800":"600"};color:${col(dayChangeVal)};padding:7px 4px;text-align:right;white-space:nowrap">${dayChangeStr}</td>
     </tr>`;
   }).join("");
 
@@ -693,13 +691,19 @@ function renderTotal(){
         <button class="mbtn${dayChangeMode==='amt'?' active':''}" onclick="switchDayChangeMode('amt')">含み益増減</button>
         <button class="mbtn${dayChangeMode==='pnlPct'?' active':''}" onclick="switchDayChangeMode('pnlPct')">含み益増減％</button>
       </div>
-      <table style="margin-top:6px;table-layout:fixed;font-size:11px">
-        <thead><tr>
-          <th style="width:20px"></th>
-          <th style="width:14%">日付</th><th>評価額</th><th>含み損益</th><th style="width:14%">損益率</th><th style="width:16%">前日比</th>
-        </tr></thead>
-        <tbody>${rows}</tbody>
-      </table>
+      <div class="tbl-wrap" style="margin-top:6px">
+        <table style="font-size:12px;border-collapse:collapse">
+          <thead><tr>
+            <th style="width:24px;padding:6px 4px"></th>
+            <th style="padding:6px 8px;white-space:nowrap">日付</th>
+            <th style="padding:6px 8px;white-space:nowrap">評価額</th>
+            <th style="padding:6px 8px;white-space:nowrap">含み損益</th>
+            <th style="padding:6px 8px;white-space:nowrap">損益率</th>
+            <th style="padding:6px 8px;white-space:nowrap">前日比</th>
+          </tr></thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>
     </div>`;
   buildMainChart();
 }
@@ -929,258 +933,7 @@ function buildFundsChart(displayFunds){
         y:{grid:{color:'#bfdbfe'},ticks:{color:'#94a3b8',font:{size:10},callback:v=>`${v}%`}}}}});
 }
 
-// ===== 分析タブ =====
-function renderAnalysis() {
-  const h = DATA.history;
-  const latest = h[h.length-1];
-  const first = h[0];
-  const daysDiff = Math.max(1, Math.round((parseDate(latest.date)-parseDate(first.date))/86400000));
-  const totalReturn = (latest.total - first.total) / first.total;
-  const defaultRate = (((1 + totalReturn) ** (365 / daysDiff) - 1) * 100).toFixed(1);
-  if (simRate === null) simRate = Math.min(Math.max(parseFloat(defaultRate), 1), 20);
-
-  document.getElementById('tabContent').innerHTML = `
-    <!-- 積立シミュレーター -->
-    <div class="card" style="margin-bottom:12px">
-      <div style="font-size:10px;color:#64748b;font-weight:700;letter-spacing:2px;margin-bottom:12px">💰 積立シミュレーター</div>
-      <div class="sim-grid" style="margin-bottom:12px">
-        <div>
-          <div class="card-label" style="margin-bottom:4px">毎月積立額</div>
-          <input type="number" id="simMonthly" value="${simMonthly}" min="1000" step="1000"
-            style="width:100%;border:1px solid #bfdbfe;border-radius:8px;padding:6px 8px;font-size:13px;font-weight:700;color:#1e3a5f;background:#f8faff"
-            oninput="simMonthly=+this.value||10000;renderSimChart()">
-          <div style="font-size:10px;color:#94a3b8;margin-top:2px">円/月</div>
-        </div>
-        <div>
-          <div class="card-label" style="margin-bottom:4px">想定年率</div>
-          <input type="number" id="simRate" value="${simRate}" min="0.1" max="50" step="0.1"
-            style="width:100%;border:1px solid #bfdbfe;border-radius:8px;padding:6px 8px;font-size:13px;font-weight:700;color:#1e3a5f;background:#f8faff"
-            oninput="simRate=+this.value||5;renderSimChart()">
-          <div style="font-size:10px;color:#94a3b8;margin-top:2px">% （CAGR: ${defaultRate}%）</div>
-        </div>
-        <div>
-          <div class="card-label" style="margin-bottom:4px">積立期間</div>
-          <input type="number" id="simYears" value="${simYears}" min="1" max="50" step="1"
-            style="width:100%;border:1px solid #bfdbfe;border-radius:8px;padding:6px 8px;font-size:13px;font-weight:700;color:#1e3a5f;background:#f8faff"
-            oninput="simYears=+this.value||20;renderSimChart()">
-          <div style="font-size:10px;color:#94a3b8;margin-top:2px">年</div>
-        </div>
-      </div>
-      <div id="simResult" style="margin-bottom:12px"></div>
-      <div style="position:relative;height:200px"><canvas id="simChart"></canvas></div>
-    </div>
-
-    <!-- 相関分析 -->
-    <div class="card" style="margin-bottom:12px">
-      <div style="font-size:10px;color:#64748b;font-weight:700;letter-spacing:2px;margin-bottom:10px">🔗 ファンド間 相関分析</div>
-      <div class="corr-wrap" id="corrMatrix"></div>
-      <div style="font-size:10px;color:#94a3b8;margin-top:8px">日次リターンの相関係数（+1: 完全同調 / 0: 無相関 / -1: 逆相関）</div>
-    </div>
-
-    <!-- リターン分布 -->
-    <div class="card" style="margin-bottom:12px">
-      <div style="font-size:10px;color:#64748b;font-weight:700;letter-spacing:2px;margin-bottom:8px">📉 日次リターン分布（ヒストグラム）</div>
-      <div class="hist-stats" id="histStats" style="margin-bottom:10px"></div>
-      <div style="position:relative;height:180px"><canvas id="histChart"></canvas></div>
-    </div>`;
-
-  renderSimChart();
-  renderCorrMatrix();
-  renderHistogram();
-}
-
-function renderSimChart() {
-  const h = DATA.history;
-  const latest = h[h.length-1];
-  const base = latest.total;
-  const monthly = simMonthly || 10000;
-  const rate = (simRate || 5) / 100;
-  const years = Math.max(1, Math.min(simYears || 20, 50));
-  const months = years * 12;
-  const mr = rate / 12;
-
-  // 積立なし（現在額のみ運用）と積立ありを両方計算
-  const labelsArr = [], withSim = [], withoutSim = [], costLine = [];
-  for (let i = 0; i <= months; i++) {
-    const y = (i/12).toFixed(1);
-    if (i % 12 === 0) labelsArr.push(`${i/12}年後`);
-    else labelsArr.push("");
-    withoutSim.push(Math.round(base * (1 + mr) ** i));
-    withSim.push(Math.round(base * (1 + mr) ** i + monthly * ((( 1 + mr) ** i - 1) / mr)));
-    costLine.push(Math.round(base + monthly * i));
-  }
-
-  const final = withSim[withSim.length-1];
-  const totalCost = costLine[costLine.length-1];
-  const gain = final - totalCost;
-
-  document.getElementById('simResult').innerHTML = `
-    <div class="sim-result">
-      <div><div class="card-label">最終評価額（${years}年後）</div><div style="font-size:17px;font-weight:900;color:#0369a1">${fmt(final)}</div></div>
-      <div><div class="card-label">総投資額</div><div style="font-size:14px;font-weight:700;color:#64748b">${fmt(totalCost)}</div></div>
-      <div><div class="card-label">運用益</div><div style="font-size:14px;font-weight:700;color:#0d9488">${fmtSigned(gain)}</div></div>
-      <div><div class="card-label">増加倍率</div><div style="font-size:14px;font-weight:700;color:#7c3aed">${(final/totalCost).toFixed(2)}倍</div></div>
-    </div>`;
-
-  destroyChart('sim');
-  const ctx = document.getElementById('simChart')?.getContext('2d');
-  if (!ctx) return;
-  charts['sim'] = new Chart(ctx, {
-    type: 'line',
-    data: {
-      labels: labelsArr,
-      datasets: [
-        { label: '積立あり', data: withSim, borderColor: '#3b82f6', backgroundColor: 'rgba(59,130,246,0.1)', borderWidth: 2, pointRadius: 0, fill: true, tension: 0.3 },
-        { label: '積立なし', data: withoutSim, borderColor: '#0d9488', backgroundColor: 'transparent', borderWidth: 1.5, borderDash:[4,4], pointRadius: 0, tension: 0.3 },
-        { label: '投資元本', data: costLine, borderColor: '#94a3b8', backgroundColor: 'transparent', borderWidth: 1.5, borderDash:[2,4], pointRadius: 0, tension: 0 },
-      ]
-    },
-    options: { responsive: true, maintainAspectRatio: false,
-      plugins: { legend: { display: true, labels: { color:'#64748b', font:{size:10}, boxWidth:16, padding:10 }},
-        tooltip: { callbacks: { label: c => `${c.dataset.label}：${fmt(c.raw)}` }}},
-      scales: {
-        x: { grid:{color:'#e2e8f0'}, ticks:{color:'#94a3b8', font:{size:9}, maxTicksLimit:years+1} },
-        y: { grid:{color:'#e2e8f0'}, ticks:{color:'#94a3b8', font:{size:9}, callback: v=>`¥${(v/1e6).toFixed(1)}M`}}
-      }
-    }
-  });
-}
-
-function renderCorrMatrix() {
-  const funds = DATA.funds;
-  if (funds.length < 2) {
-    document.getElementById('corrMatrix').innerHTML = '<div style="font-size:12px;color:#94a3b8">ファンドが2つ以上必要です</div>';
-    return;
-  }
-
-  // 共通日付で日次リターン系列を作る
-  const allDates = [...new Set(funds.flatMap(f => f.data.map(d => d.date)))].sort();
-  function getDailyReturns(f) {
-    const navMap = {};
-    f.data.filter(d=>d.pnlPct!=null).forEach(d => {
-      navMap[d.date] = f.cost_nav * (1 + d.pnlPct / 100);
-    });
-    const returns = [];
-    for (let i = 1; i < allDates.length; i++) {
-      const prev = navMap[allDates[i-1]], cur = navMap[allDates[i]];
-      returns.push(prev && cur ? (cur - prev) / prev : null);
-    }
-    return returns;
-  }
-
-  function corr(a, b) {
-    const pairs = a.map((v,i) => [v, b[i]]).filter(([x,y]) => x!=null && y!=null);
-    if (pairs.length < 5) return null;
-    const n = pairs.length;
-    const mx = pairs.reduce((s,[x])=>s+x,0)/n, my = pairs.reduce((s,[,y])=>s+y,0)/n;
-    const num = pairs.reduce((s,[x,y])=>s+(x-mx)*(y-my),0);
-    const dx = Math.sqrt(pairs.reduce((s,[x])=>s+(x-mx)**2,0));
-    const dy = Math.sqrt(pairs.reduce((s,[,y])=>s+(y-my)**2,0));
-    return dx*dy===0 ? null : num/(dx*dy);
-  }
-
-  const series = funds.map(getDailyReturns);
-
-  function corrColor(v) {
-    if (v === null) return '#f8faff';
-    const abs = Math.abs(v);
-    if (v === 1) return '#1e3a5f';
-    if (v >= 0.8) return '#1d4ed8';
-    if (v >= 0.5) return '#3b82f6';
-    if (v >= 0.2) return '#93c5fd';
-    if (v >= -0.2) return '#e2e8f0';
-    if (v >= -0.5) return '#fca5a5';
-    return '#ef4444';
-  }
-  function corrTextColor(v) {
-    if (v === null) return '#94a3b8';
-    return Math.abs(v) >= 0.5 ? '#fff' : '#1e293b';
-  }
-
-  const size = funds.length;
-  let html = `<table style="border-collapse:collapse;font-size:11px;width:100%;table-layout:fixed">`;
-  html += `<thead><tr><th style="padding:4px 4px"></th>${funds.map(f=>`<th style="padding:4px 4px;color:#64748b;font-weight:700;text-align:center;word-break:break-all;font-size:10px">${f.short}</th>`).join("")}</tr></thead><tbody>`;
-  for (let i = 0; i < size; i++) {
-    html += `<tr><td style="padding:6px 8px;font-weight:700;color:#64748b;white-space:nowrap">${funds[i].short}</td>`;
-    for (let j = 0; j < size; j++) {
-      const v = i === j ? 1 : corr(series[i], series[j]);
-      const bg = corrColor(v);
-      const tc = corrTextColor(v);
-      html += `<td style="padding:6px 4px;text-align:center;background:${bg};color:${tc};font-weight:${i===j?900:700};border-radius:3px;border:1px solid #f0f7ff;font-size:11px">${v!=null?v.toFixed(2):"—"}</td>`;
-    }
-    html += `</tr>`;
-  }
-  html += `</tbody></table>`;
-
-  // 解釈コメント
-  let insights = [];
-  for (let i = 0; i < size; i++) {
-    for (let j = i+1; j < size; j++) {
-      const v = corr(series[i], series[j]);
-      if (v === null) continue;
-      if (v >= 0.8) insights.push(`<span style="color:#1d4ed8">📌 ${funds[i].short} と ${funds[j].short} は強く同調（${v.toFixed(2)}）</span>`);
-      else if (v <= -0.3) insights.push(`<span style="color:#0d9488">✅ ${funds[i].short} と ${funds[j].short} は分散効果あり（${v.toFixed(2)}）</span>`);
-    }
-  }
-  if (insights.length) html += `<div style="margin-top:10px;display:flex;flex-direction:column;gap:4px;font-size:11px">${insights.join("")}</div>`;
-
-  document.getElementById('corrMatrix').innerHTML = html;
-}
-
-function renderHistogram() {
-  const h = DATA.history;
-  const dailyReturns = h.slice(1).map((d,i) =>
-    h[i].total > 0 ? (d.total - h[i].total) / h[i].total * 100 : null
-  ).filter(v => v !== null);
-
-  if (dailyReturns.length < 5) return;
-
-  const mean = dailyReturns.reduce((a,b)=>a+b,0) / dailyReturns.length;
-  const variance = dailyReturns.reduce((a,b)=>a+(b-mean)**2,0) / dailyReturns.length;
-  const std = Math.sqrt(variance);
-  const positiveRate = dailyReturns.filter(v=>v>0).length / dailyReturns.length * 100;
-  const maxR = Math.max(...dailyReturns), minR = Math.min(...dailyReturns);
-
-  document.getElementById('histStats').innerHTML = `
-    <div class="hist-stat"><div class="card-label">平均日次リターン</div><div style="font-size:14px;font-weight:800;color:${col(mean)}">${mean>=0?"+":""}${mean.toFixed(3)}%</div></div>
-    <div class="hist-stat"><div class="card-label">標準偏差（ボラ）</div><div style="font-size:14px;font-weight:800;color:#7c3aed">±${std.toFixed(3)}%</div></div>
-    <div class="hist-stat"><div class="card-label">プラス日の割合</div><div style="font-size:14px;font-weight:800;color:#0d9488">${positiveRate.toFixed(1)}%</div></div>
-    <div class="hist-stat"><div class="card-label">最大日次騰落</div><div style="font-size:12px;font-weight:700;color:#64748b">🚀 +${maxR.toFixed(2)}%<br>💥 ${minR.toFixed(2)}%</div></div>`;
-
-  // ビン分割
-  const binCount = 20;
-  const binMin = Math.floor(minR * 2) / 2, binMax = Math.ceil(maxR * 2) / 2;
-  const binWidth = (binMax - binMin) / binCount;
-  const bins = Array(binCount).fill(0);
-  const binLabels = [];
-  for (let i = 0; i < binCount; i++) binLabels.push((binMin + binWidth * (i + 0.5)).toFixed(2) + "%");
-  dailyReturns.forEach(v => {
-    let idx = Math.floor((v - binMin) / binWidth);
-    idx = Math.min(Math.max(idx, 0), binCount - 1);
-    bins[idx]++;
-  });
-  const binColors = Array(binCount).fill(0).map((_, i) => {
-    const center = binMin + binWidth * (i + 0.5);
-    return center >= 0 ? 'rgba(13,148,136,0.7)' : 'rgba(225,29,72,0.7)';
-  });
-
-  destroyChart('hist');
-  const ctx = document.getElementById('histChart')?.getContext('2d');
-  if (!ctx) return;
-  charts['hist'] = new Chart(ctx, {
-    type: 'bar',
-    data: { labels: binLabels, datasets: [{ data: bins, backgroundColor: binColors, borderColor: 'transparent', borderWidth: 0, borderRadius: 2 }] },
-    options: { responsive: true, maintainAspectRatio: false,
-      plugins: { legend: {display:false}, tooltip: { callbacks: { label: c=>`${c.raw}日` }}},
-      scales: {
-        x: { grid:{display:false}, ticks:{color:'#94a3b8', font:{size:9}, maxTicksLimit:10} },
-        y: { grid:{color:'#e2e8f0'}, ticks:{color:'#94a3b8', font:{size:9}}, title:{display:true, text:'日数', color:'#94a3b8', font:{size:9}}}
-      }
-    }
-  });
-}
-
-
+// ===== 月・日ドロップダウン =====
 function onPickerChange(pid, col, val) {
   const h = DATA.history;
   const dateList = h.map(d=>d.date);
@@ -1215,20 +968,173 @@ function updateRangeResult() {
   const reData = h.find(d=>d.date===rangeEnd);
   const rChange = rsData&&reData ? reData.total-rsData.total : null;
   const rPct = rsData&&rChange!=null ? rChange/rsData.total*100 : null;
-  const pnlChange = rsData&&reData&&rsData.pnl!=null&&reData.pnl!=null ? reData.pnl-rsData.pnl : null;
-  const pnlPctChange = rsData&&pnlChange!=null&&rsData.pnl!=null&&rsData.pnl!==0 ? pnlChange/Math.abs(rsData.pnl)*100 : null;
+  const pnlC = rsData&&reData&&rsData.pnl!=null&&reData.pnl!=null ? reData.pnl-rsData.pnl : null;
+  const pnlCpct = pnlC!=null&&rsData.pnl!==0 ? pnlC/Math.abs(rsData.pnl)*100 : null;
   const el = document.getElementById('rangeResult');
   if (!el) return;
   el.innerHTML = rChange!=null ? `
     <div style="display:flex;gap:16px;flex-wrap:wrap">
       <div><div class="card-label">評価額変化</div><div style="font-size:18px;font-weight:800;color:${col(rChange)}">${fmtSigned(rChange)}</div></div>
       <div><div class="card-label">変化率</div><div style="font-size:18px;font-weight:800;color:${col(rPct)}">${fmtPct(rPct)}</div></div>
-      ${pnlChange!=null?`<div style="border-left:2px solid #bfdbfe;padding-left:16px"><div class="card-label">含み益変化</div><div style="font-size:18px;font-weight:800;color:${col(pnlChange)}">${fmtSigned(pnlChange)}</div>${pnlPctChange!=null?`<div style="font-size:11px;color:${col(pnlPctChange)}">${fmtPct(pnlPctChange)}</div>`:""}</div>`:""}
-      <div><div class="card-label">開始時評価額</div><div style="font-size:13px;font-weight:600;color:#64748b">${fmt(rsData?.total)}</div>${rsData?.pnl!=null?`<div style="font-size:11px;color:#94a3b8">含み益 ${fmtSigned(rsData.pnl)}</div>`:""}</div>
+      ${pnlC!=null?`<div><div class="card-label">含み益変化</div><div style="font-size:18px;font-weight:800;color:${col(pnlC)}">${fmtSigned(pnlC)}</div>${pnlCpct!=null?`<div style="font-size:11px;color:${col(pnlCpct)}">${fmtPct(pnlCpct)}</div>`:""}</div>`:""}
+      <div><div class="card-label">開始時評価額</div><div style="font-size:13px;font-weight:600;color:#64748b">${fmt(rsData?.total)}</div></div>
     </div>` : '<div style="font-size:12px;color:#94a3b8">データにない日付の組み合わせです</div>';
 }
 
-function render(){renderSummary();renderTabs();renderContent();}
+// ===== 分析タブ =====
+function renderAnalysis() {
+  const h = DATA.history;
+  const latest = h[h.length-1], first = h[0];
+  const daysDiff = Math.max(1, Math.round((parseDate(latest.date)-parseDate(first.date))/86400000));
+  const defaultRate = (((1+(latest.total-first.total)/first.total)**(365/daysDiff)-1)*100).toFixed(1);
+  if (simRate===null) simRate = Math.min(Math.max(parseFloat(defaultRate),1),20);
+
+  document.getElementById('tabContent').innerHTML = `
+    <div class="card" style="margin-bottom:12px">
+      <div style="font-size:10px;color:#64748b;font-weight:700;letter-spacing:2px;margin-bottom:12px">💰 積立シミュレーター</div>
+      <div class="sim-grid" style="margin-bottom:12px">
+        <div>
+          <div class="card-label" style="margin-bottom:4px">毎月積立額</div>
+          <input type="number" id="simMonthly" value="${simMonthly}" min="1000" step="1000"
+            style="border:1px solid #bfdbfe;border-radius:8px;padding:6px 8px;font-size:13px;font-weight:700;color:#1e3a5f;background:#f8faff"
+            oninput="simMonthly=+this.value||10000;renderSimChart()">
+          <div style="font-size:10px;color:#94a3b8;margin-top:2px">円/月</div>
+        </div>
+        <div>
+          <div class="card-label" style="margin-bottom:4px">想定年率</div>
+          <input type="number" id="simRate" value="${simRate}" min="0.1" max="50" step="0.1"
+            style="border:1px solid #bfdbfe;border-radius:8px;padding:6px 8px;font-size:13px;font-weight:700;color:#1e3a5f;background:#f8faff"
+            oninput="simRate=+this.value||5;renderSimChart()">
+          <div style="font-size:10px;color:#94a3b8;margin-top:2px">%（実績CAGR: ${defaultRate}%）</div>
+        </div>
+        <div>
+          <div class="card-label" style="margin-bottom:4px">積立期間</div>
+          <input type="number" id="simYears" value="${simYears}" min="1" max="50" step="1"
+            style="border:1px solid #bfdbfe;border-radius:8px;padding:6px 8px;font-size:13px;font-weight:700;color:#1e3a5f;background:#f8faff"
+            oninput="simYears=+this.value||20;renderSimChart()">
+          <div style="font-size:10px;color:#94a3b8;margin-top:2px">年</div>
+        </div>
+      </div>
+      <div id="simResult" style="margin-bottom:12px"></div>
+      <div style="position:relative;height:200px"><canvas id="simChart"></canvas></div>
+    </div>
+    <div class="card" style="margin-bottom:12px">
+      <div style="font-size:10px;color:#64748b;font-weight:700;letter-spacing:2px;margin-bottom:10px">🔗 ファンド間 相関分析</div>
+      <div class="corr-wrap" id="corrMatrix"></div>
+      <div style="font-size:10px;color:#94a3b8;margin-top:8px">日次リターンの相関係数（+1: 完全同調 / 0: 無相関 / -1: 逆相関）</div>
+    </div>
+    <div class="card" style="margin-bottom:12px">
+      <div style="font-size:10px;color:#64748b;font-weight:700;letter-spacing:2px;margin-bottom:8px">📉 日次リターン分布（ヒストグラム）</div>
+      <div class="hist-stats" id="histStats" style="margin-bottom:10px"></div>
+      <div style="position:relative;height:180px"><canvas id="histChart"></canvas></div>
+    </div>`;
+
+  renderSimChart(); renderCorrMatrix(); renderHistogram();
+}
+
+function renderSimChart() {
+  const h = DATA.history, latest = h[h.length-1];
+  const base = latest.total, monthly = simMonthly||10000;
+  const rate = (simRate||5)/100, years = Math.max(1,Math.min(simYears||20,50));
+  const months = years*12, mr = rate/12;
+  const labelsArr=[], withSim=[], withoutSim=[], costLine=[];
+  for(let i=0;i<=months;i++){
+    labelsArr.push(i%12===0?`${i/12}年後`:"");
+    withoutSim.push(Math.round(base*(1+mr)**i));
+    withSim.push(Math.round(base*(1+mr)**i + monthly*((1+mr)**i-1)/mr));
+    costLine.push(Math.round(base+monthly*i));
+  }
+  const final=withSim[withSim.length-1], totalCost=costLine[costLine.length-1];
+  document.getElementById('simResult').innerHTML=`
+    <div class="sim-result">
+      <div><div class="card-label">${years}年後の評価額</div><div style="font-size:17px;font-weight:900;color:#0369a1">${fmt(final)}</div></div>
+      <div><div class="card-label">総投資額</div><div style="font-size:14px;font-weight:700;color:#64748b">${fmt(totalCost)}</div></div>
+      <div><div class="card-label">運用益</div><div style="font-size:14px;font-weight:700;color:#0d9488">${fmtSigned(final-totalCost)}</div></div>
+      <div><div class="card-label">増加倍率</div><div style="font-size:14px;font-weight:700;color:#7c3aed">${(final/totalCost).toFixed(2)}倍</div></div>
+    </div>`;
+  destroyChart('sim');
+  const ctx=document.getElementById('simChart')?.getContext('2d'); if(!ctx)return;
+  charts['sim']=new Chart(ctx,{type:'line',
+    data:{labels:labelsArr,datasets:[
+      {label:'積立あり',data:withSim,borderColor:'#3b82f6',backgroundColor:'rgba(59,130,246,0.1)',borderWidth:2,pointRadius:0,fill:true,tension:0.3},
+      {label:'積立なし',data:withoutSim,borderColor:'#0d9488',backgroundColor:'transparent',borderWidth:1.5,borderDash:[4,4],pointRadius:0,tension:0.3},
+      {label:'投資元本',data:costLine,borderColor:'#94a3b8',backgroundColor:'transparent',borderWidth:1.5,borderDash:[2,4],pointRadius:0,tension:0},
+    ]},
+    options:{responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{display:true,labels:{color:'#64748b',font:{size:10},boxWidth:16,padding:10}},
+        tooltip:{callbacks:{label:c=>`${c.dataset.label}：${fmt(c.raw)}`}}},
+      scales:{x:{grid:{color:'#e2e8f0'},ticks:{color:'#94a3b8',font:{size:9},maxTicksLimit:years+1}},
+        y:{grid:{color:'#e2e8f0'},ticks:{color:'#94a3b8',font:{size:9},callback:v=>`¥${(v/1e6).toFixed(1)}M`}}}}});
+}
+
+function renderCorrMatrix() {
+  const funds=DATA.funds;
+  if(funds.length<2){document.getElementById('corrMatrix').innerHTML='<div style="font-size:12px;color:#94a3b8">ファンドが2つ以上必要です</div>';return;}
+  const allDates=[...new Set(funds.flatMap(f=>f.data.map(d=>d.date)))].sort();
+  function getDR(f){
+    const nm={};f.data.filter(d=>d.pnlPct!=null).forEach(d=>nm[d.date]=f.cost_nav*(1+d.pnlPct/100));
+    return allDates.slice(1).map((_,i)=>{const p=nm[allDates[i]],c=nm[allDates[i+1]];return p&&c?(c-p)/p:null;});
+  }
+  function corr(a,b){
+    const pairs=a.map((v,i)=>[v,b[i]]).filter(([x,y])=>x!=null&&y!=null);
+    if(pairs.length<5)return null;
+    const n=pairs.length,mx=pairs.reduce((s,[x])=>s+x,0)/n,my=pairs.reduce((s,[,y])=>s+y,0)/n;
+    const num=pairs.reduce((s,[x,y])=>s+(x-mx)*(y-my),0);
+    const dx=Math.sqrt(pairs.reduce((s,[x])=>s+(x-mx)**2,0)),dy=Math.sqrt(pairs.reduce((s,[,y])=>s+(y-my)**2,0));
+    return dx*dy===0?null:num/(dx*dy);
+  }
+  const series=funds.map(getDR);
+  const bg=v=>v===null?'#f8faff':v>=0.8?'#1d4ed8':v>=0.5?'#3b82f6':v>=0.2?'#93c5fd':v>=-0.2?'#e2e8f0':v>=-0.5?'#fca5a5':'#ef4444';
+  const tc=v=>v===null?'#94a3b8':Math.abs(v||0)>=0.5?'#fff':'#1e293b';
+  let html=`<table style="border-collapse:collapse;font-size:11px;width:100%"><thead><tr><th style="padding:4px 6px"></th>`;
+  funds.forEach(f=>{html+=`<th style="padding:4px 6px;color:#64748b;font-weight:700;text-align:center;white-space:nowrap">${f.short}</th>`;});
+  html+=`</tr></thead><tbody>`;
+  funds.forEach((f,i)=>{
+    html+=`<tr><td style="padding:4px 6px;font-weight:700;color:#64748b;white-space:nowrap">${f.short}</td>`;
+    funds.forEach((_,j)=>{
+      const v=i===j?1:corr(series[i],series[j]);
+      html+=`<td style="padding:6px 8px;text-align:center;background:${bg(v)};color:${tc(v)};font-weight:${i===j?900:700};border-radius:3px;border:1px solid #f0f7ff;white-space:nowrap">${v!=null?v.toFixed(2):"—"}</td>`;
+    });
+    html+=`</tr>`;
+  });
+  html+=`</tbody></table>`;
+  let insights=[];
+  funds.forEach((f,i)=>funds.forEach((_,j)=>{if(j<=i)return;const v=corr(series[i],series[j]);if(!v)return;
+    if(v>=0.8)insights.push(`<span style="color:#1d4ed8">📌 ${funds[i].short}と${funds[j].short}は強く同調（${v.toFixed(2)}）</span>`);
+    else if(v<=-0.3)insights.push(`<span style="color:#0d9488">✅ ${funds[i].short}と${funds[j].short}は分散効果あり（${v.toFixed(2)}）</span>`);
+  }));
+  if(insights.length)html+=`<div style="margin-top:10px;display:flex;flex-direction:column;gap:4px;font-size:11px">${insights.join("")}</div>`;
+  document.getElementById('corrMatrix').innerHTML=html;
+}
+
+function renderHistogram() {
+  const h=DATA.history;
+  const dr=h.slice(1).map((d,i)=>h[i].total>0?(d.total-h[i].total)/h[i].total*100:null).filter(v=>v!==null);
+  if(dr.length<5)return;
+  const mean=dr.reduce((a,b)=>a+b,0)/dr.length;
+  const std=Math.sqrt(dr.reduce((a,b)=>a+(b-mean)**2,0)/dr.length);
+  const pos=dr.filter(v=>v>0).length/dr.length*100;
+  const maxR=Math.max(...dr),minR=Math.min(...dr);
+  document.getElementById('histStats').innerHTML=`
+    <div class="hist-stat"><div class="card-label">平均日次リターン</div><div style="font-size:14px;font-weight:800;color:${col(mean)}">${mean>=0?"+":""}${mean.toFixed(3)}%</div></div>
+    <div class="hist-stat"><div class="card-label">標準偏差（ボラ）</div><div style="font-size:14px;font-weight:800;color:#7c3aed">±${std.toFixed(3)}%</div></div>
+    <div class="hist-stat"><div class="card-label">プラス日の割合</div><div style="font-size:14px;font-weight:800;color:#0d9488">${pos.toFixed(1)}%</div></div>
+    <div class="hist-stat"><div class="card-label">最大騰落</div><div style="font-size:12px;font-weight:700;color:#64748b">🚀+${maxR.toFixed(2)}% / 💥${minR.toFixed(2)}%</div></div>`;
+  const bins=20,bmin=Math.floor(minR*2)/2,bmax=Math.ceil(maxR*2)/2,bw=(bmax-bmin)/bins;
+  const cnts=Array(bins).fill(0),lbls=[];
+  for(let i=0;i<bins;i++)lbls.push((bmin+bw*(i+0.5)).toFixed(2)+"%");
+  dr.forEach(v=>{let idx=Math.min(Math.max(Math.floor((v-bmin)/bw),0),bins-1);cnts[idx]++;});
+  destroyChart('hist');
+  const ctx=document.getElementById('histChart')?.getContext('2d'); if(!ctx)return;
+  charts['hist']=new Chart(ctx,{type:'bar',
+    data:{labels:lbls,datasets:[{data:cnts,backgroundColor:Array(bins).fill(0).map((_,i)=>(bmin+bw*(i+0.5))>=0?'rgba(13,148,136,0.7)':'rgba(225,29,72,0.7)'),borderWidth:0,borderRadius:2}]},
+    options:{responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>`${c.raw}日`}}},
+      scales:{x:{grid:{display:false},ticks:{color:'#94a3b8',font:{size:9},maxTicksLimit:10}},
+        y:{grid:{color:'#e2e8f0'},ticks:{color:'#94a3b8',font:{size:9}}}}}});
+}
+
+
 
 // ===== 起動時チェック =====
 // セッションにデータがあっても必ずロック画面を表示する
