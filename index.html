@@ -39,7 +39,7 @@ if('serviceWorker' in navigator){
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0;}
-body{background:#f0f7ff;color:#1e293b;font-family:'Helvetica Neue',sans-serif;padding-bottom:80px;font-size:14px;}
+body{background:#f0f7ff;color:#1e293b;font-family:'Helvetica Neue',sans-serif;padding-bottom:80px;font-size:14px;overflow-x:hidden;}
 
 /* ロック画面 */
 #lockScreen{
@@ -83,11 +83,22 @@ td{padding:7px 8px;text-align:right;border-bottom:1px solid #eff6ff;}
 .legend{display:flex;flex-wrap:wrap;gap:8px 14px;margin-top:10px;}
 .legend-item{display:flex;align-items:center;gap:5px;font-size:11px;color:#64748b;}
 .legend-line{width:12px;height:3px;border-radius:2px;}
-select{background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;color:#1e40af;padding:6px 8px;font-size:13px;cursor:pointer;font-weight:600;}
-.date-picker{display:flex;flex-direction:column;gap:6px;flex:1;}
+select{background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;color:#1e40af;padding:6px 8px;font-size:13px;cursor:pointer;font-weight:600;max-width:100%;}
+.date-picker{display:flex;flex-direction:column;gap:6px;flex:1;min-width:0;}
 .date-picker-label{font-size:10px;color:#94a3b8;font-weight:600;}
 .date-picker-selects{display:flex;gap:4px;}
-.date-picker-selects select{flex:1;}
+.date-picker-selects select{flex:1;min-width:0;}
+input[type=number]{-moz-appearance:textfield;box-sizing:border-box;}
+input[type=number]::-webkit-inner-spin-button,input[type=number]::-webkit-outer-spin-button{opacity:1;}
+.sim-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;}
+@media(max-width:400px){.sim-grid{grid-template-columns:1fr 1fr;}}
+.scroll-x{overflow-x:auto;-webkit-overflow-scrolling:touch;max-width:100%;}
+.scroll-x table{min-width:320px;}
+.corr-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;max-width:100%;}
+.hist-stats{display:flex;gap:12px;flex-wrap:wrap;}
+.hist-stat{min-width:0;flex:1 1 calc(50% - 6px);}
+.sim-result{display:grid;grid-template-columns:1fr 1fr;gap:8px;padding:12px;background:#f0f9ff;border-radius:10px;border:1px solid #bae6fd;}
+@media(max-width:360px){.sim-result{grid-template-columns:1fr;}}
 
 /* データ更新モーダル */
 .modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.4);z-index:100;align-items:center;justify-content:center;padding:16px;}
@@ -531,8 +542,8 @@ function renderSummary(){
     </div>
     <div class="card full">
       <div style="font-size:10px;color:#64748b;font-weight:700;letter-spacing:2px;margin-bottom:10px">📅 月次サマリー</div>
-      <div style="overflow-x:auto">
-        <table style="width:100%;font-size:11px;border-collapse:collapse;min-width:360px">
+      <div class="scroll-x">
+        <table style="width:100%;font-size:11px;border-collapse:collapse;min-width:320px">
           <thead>
             <tr style="border-bottom:2px solid #bfdbfe">
               <th style="text-align:left;color:#64748b;padding:5px 6px;font-weight:700">月</th>
@@ -931,14 +942,12 @@ function renderAnalysis() {
     <!-- 積立シミュレーター -->
     <div class="card" style="margin-bottom:12px">
       <div style="font-size:10px;color:#64748b;font-weight:700;letter-spacing:2px;margin-bottom:12px">💰 積立シミュレーター</div>
-      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:12px">
+      <div class="sim-grid" style="margin-bottom:12px">
         <div>
           <div class="card-label" style="margin-bottom:4px">毎月積立額</div>
-          <div style="display:flex;align-items:center;gap:4px">
-            <input type="number" id="simMonthly" value="${simMonthly}" min="1000" step="1000"
-              style="width:100%;border:1px solid #bfdbfe;border-radius:8px;padding:6px 8px;font-size:13px;font-weight:700;color:#1e3a5f;background:#f8faff"
-              oninput="simMonthly=+this.value||10000;renderSimChart()">
-          </div>
+          <input type="number" id="simMonthly" value="${simMonthly}" min="1000" step="1000"
+            style="width:100%;border:1px solid #bfdbfe;border-radius:8px;padding:6px 8px;font-size:13px;font-weight:700;color:#1e3a5f;background:#f8faff"
+            oninput="simMonthly=+this.value||10000;renderSimChart()">
           <div style="font-size:10px;color:#94a3b8;margin-top:2px">円/月</div>
         </div>
         <div>
@@ -963,14 +972,14 @@ function renderAnalysis() {
     <!-- 相関分析 -->
     <div class="card" style="margin-bottom:12px">
       <div style="font-size:10px;color:#64748b;font-weight:700;letter-spacing:2px;margin-bottom:10px">🔗 ファンド間 相関分析</div>
-      <div id="corrMatrix"></div>
+      <div class="corr-wrap" id="corrMatrix"></div>
       <div style="font-size:10px;color:#94a3b8;margin-top:8px">日次リターンの相関係数（+1: 完全同調 / 0: 無相関 / -1: 逆相関）</div>
     </div>
 
     <!-- リターン分布 -->
     <div class="card" style="margin-bottom:12px">
       <div style="font-size:10px;color:#64748b;font-weight:700;letter-spacing:2px;margin-bottom:8px">📉 日次リターン分布（ヒストグラム）</div>
-      <div id="histStats" style="display:flex;gap:16px;flex-wrap:wrap;margin-bottom:10px"></div>
+      <div class="hist-stats" id="histStats" style="margin-bottom:10px"></div>
       <div style="position:relative;height:180px"><canvas id="histChart"></canvas></div>
     </div>`;
 
@@ -1005,11 +1014,11 @@ function renderSimChart() {
   const gain = final - totalCost;
 
   document.getElementById('simResult').innerHTML = `
-    <div style="display:flex;gap:14px;flex-wrap:wrap;padding:12px;background:#f0f9ff;border-radius:10px;border:1px solid #bae6fd">
-      <div><div class="card-label">最終評価額（${years}年後）</div><div style="font-size:19px;font-weight:900;color:#0369a1">${fmt(final)}</div></div>
-      <div><div class="card-label">総投資額</div><div style="font-size:15px;font-weight:700;color:#64748b">${fmt(totalCost)}</div></div>
-      <div><div class="card-label">運用益</div><div style="font-size:15px;font-weight:700;color:#0d9488">${fmtSigned(gain)}</div></div>
-      <div><div class="card-label">増加倍率</div><div style="font-size:15px;font-weight:700;color:#7c3aed">${(final/totalCost).toFixed(2)}倍</div></div>
+    <div class="sim-result">
+      <div><div class="card-label">最終評価額（${years}年後）</div><div style="font-size:17px;font-weight:900;color:#0369a1">${fmt(final)}</div></div>
+      <div><div class="card-label">総投資額</div><div style="font-size:14px;font-weight:700;color:#64748b">${fmt(totalCost)}</div></div>
+      <div><div class="card-label">運用益</div><div style="font-size:14px;font-weight:700;color:#0d9488">${fmtSigned(gain)}</div></div>
+      <div><div class="card-label">増加倍率</div><div style="font-size:14px;font-weight:700;color:#7c3aed">${(final/totalCost).toFixed(2)}倍</div></div>
     </div>`;
 
   destroyChart('sim');
@@ -1088,7 +1097,7 @@ function renderCorrMatrix() {
   }
 
   const size = funds.length;
-  let html = `<div style="overflow-x:auto"><table style="border-collapse:collapse;font-size:11px;margin:0 auto">`;
+  let html = `<table style="border-collapse:collapse;font-size:11px;width:100%">`;
   html += `<thead><tr><th style="padding:6px 8px"></th>${funds.map(f=>`<th style="padding:6px 8px;color:#64748b;font-weight:700;text-align:center;max-width:80px;word-break:break-all">${f.short}</th>`).join("")}</tr></thead><tbody>`;
   for (let i = 0; i < size; i++) {
     html += `<tr><td style="padding:6px 8px;font-weight:700;color:#64748b;white-space:nowrap">${funds[i].short}</td>`;
@@ -1100,7 +1109,7 @@ function renderCorrMatrix() {
     }
     html += `</tr>`;
   }
-  html += `</tbody></table></div>`;
+  html += `</tbody></table>`;
 
   // 解釈コメント
   let insights = [];
@@ -1132,10 +1141,10 @@ function renderHistogram() {
   const maxR = Math.max(...dailyReturns), minR = Math.min(...dailyReturns);
 
   document.getElementById('histStats').innerHTML = `
-    <div><div class="card-label">平均日次リターン</div><div style="font-size:14px;font-weight:800;color:${col(mean)}">${mean>=0?"+":""}${mean.toFixed(3)}%</div></div>
-    <div><div class="card-label">標準偏差（ボラ）</div><div style="font-size:14px;font-weight:800;color:#7c3aed">±${std.toFixed(3)}%</div></div>
-    <div><div class="card-label">プラス日の割合</div><div style="font-size:14px;font-weight:800;color:#0d9488">${positiveRate.toFixed(1)}%</div></div>
-    <div><div class="card-label">最大日次騰落</div><div style="font-size:11px;font-weight:700;color:#64748b">🚀 +${maxR.toFixed(2)}% / 💥 ${minR.toFixed(2)}%</div></div>`;
+    <div class="hist-stat"><div class="card-label">平均日次リターン</div><div style="font-size:14px;font-weight:800;color:${col(mean)}">${mean>=0?"+":""}${mean.toFixed(3)}%</div></div>
+    <div class="hist-stat"><div class="card-label">標準偏差（ボラ）</div><div style="font-size:14px;font-weight:800;color:#7c3aed">±${std.toFixed(3)}%</div></div>
+    <div class="hist-stat"><div class="card-label">プラス日の割合</div><div style="font-size:14px;font-weight:800;color:#0d9488">${positiveRate.toFixed(1)}%</div></div>
+    <div class="hist-stat"><div class="card-label">最大日次騰落</div><div style="font-size:12px;font-weight:700;color:#64748b">🚀 +${maxR.toFixed(2)}%<br>💥 ${minR.toFixed(2)}%</div></div>`;
 
   // ビン分割
   const binCount = 20;
