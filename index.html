@@ -391,11 +391,16 @@ function renderSummary(){
         ${datePickerHtml("pe", rangeEnd)}
       </div>
       <div id="rangeResult">
-      ${rChange!=null?`<div style="display:flex;gap:20px;flex-wrap:wrap">
-        <div><div class="card-label">評価額変化</div><div style="font-size:18px;font-weight:800;color:${col(rChange)}">${fmtSigned(rChange)}</div></div>
-        <div><div class="card-label">変化率</div><div style="font-size:18px;font-weight:800;color:${col(rPct)}">${fmtPct(rPct)}</div></div>
-        <div><div class="card-label">開始時評価額</div><div style="font-size:13px;font-weight:600;color:#64748b">${fmt(rsData?.total)}</div></div>
-      </div>`:'<div style="font-size:12px;color:#94a3b8">同じ日付が選択されています</div>'}
+      ${(()=>{
+        const pnlChange2 = rsData&&reData&&rsData.pnl!=null&&reData.pnl!=null ? reData.pnl-rsData.pnl : null;
+        const pnlPctChange2 = rsData&&pnlChange2!=null&&rsData.pnl!=null&&rsData.pnl!==0 ? pnlChange2/Math.abs(rsData.pnl)*100 : null;
+        return rChange!=null?`<div style="display:flex;gap:16px;flex-wrap:wrap">
+          <div><div class="card-label">評価額変化</div><div style="font-size:18px;font-weight:800;color:${col(rChange)}">${fmtSigned(rChange)}</div></div>
+          <div><div class="card-label">変化率</div><div style="font-size:18px;font-weight:800;color:${col(rPct)}">${fmtPct(rPct)}</div></div>
+          ${pnlChange2!=null?`<div style="border-left:2px solid #bfdbfe;padding-left:16px"><div class="card-label">含み益変化</div><div style="font-size:18px;font-weight:800;color:${col(pnlChange2)}">${fmtSigned(pnlChange2)}</div>${pnlPctChange2!=null?`<div style="font-size:11px;color:${col(pnlPctChange2)}">${fmtPct(pnlPctChange2)}</div>`:""}</div>`:""}
+          <div><div class="card-label">開始時評価額</div><div style="font-size:13px;font-weight:600;color:#64748b">${fmt(rsData?.total)}</div>${rsData?.pnl!=null?`<div style="font-size:11px;color:#94a3b8">含み益 ${fmtSigned(rsData.pnl)}</div>`:""}</div>
+        </div>`:'<div style="font-size:12px;color:#94a3b8">同じ日付が選択されています</div>';
+      })()}
       </div>
     </div>
     <div class="card full" style="background:linear-gradient(135deg,#ede9fe,#ddd6fe);border-color:#c4b5fd">
@@ -909,13 +914,16 @@ function updateRangeResult() {
   const reData = h.find(d=>d.date===rangeEnd);
   const rChange = rsData&&reData ? reData.total-rsData.total : null;
   const rPct = rsData&&rChange!=null ? rChange/rsData.total*100 : null;
+  const pnlChange = rsData&&reData&&rsData.pnl!=null&&reData.pnl!=null ? reData.pnl-rsData.pnl : null;
+  const pnlPctChange = rsData&&pnlChange!=null&&rsData.pnl!=null&&rsData.pnl!==0 ? pnlChange/Math.abs(rsData.pnl)*100 : null;
   const el = document.getElementById('rangeResult');
   if (!el) return;
   el.innerHTML = rChange!=null ? `
-    <div style="display:flex;gap:20px;flex-wrap:wrap">
+    <div style="display:flex;gap:16px;flex-wrap:wrap">
       <div><div class="card-label">評価額変化</div><div style="font-size:18px;font-weight:800;color:${col(rChange)}">${fmtSigned(rChange)}</div></div>
       <div><div class="card-label">変化率</div><div style="font-size:18px;font-weight:800;color:${col(rPct)}">${fmtPct(rPct)}</div></div>
-      <div><div class="card-label">開始時評価額</div><div style="font-size:13px;font-weight:600;color:#64748b">${fmt(rsData?.total)}</div></div>
+      ${pnlChange!=null?`<div style="border-left:2px solid #bfdbfe;padding-left:16px"><div class="card-label">含み益変化</div><div style="font-size:18px;font-weight:800;color:${col(pnlChange)}">${fmtSigned(pnlChange)}</div>${pnlPctChange!=null?`<div style="font-size:11px;color:${col(pnlPctChange)}">${fmtPct(pnlPctChange)}</div>`:""}</div>`:""}
+      <div><div class="card-label">開始時評価額</div><div style="font-size:13px;font-weight:600;color:#64748b">${fmt(rsData?.total)}</div>${rsData?.pnl!=null?`<div style="font-size:11px;color:#94a3b8">含み益 ${fmtSigned(rsData.pnl)}</div>`:""}</div>
     </div>` : '<div style="font-size:12px;color:#94a3b8">データにない日付の組み合わせです</div>';
 }
 
