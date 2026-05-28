@@ -47,7 +47,7 @@ body{background:#f0f7ff;color:#1e293b;font-family:'Helvetica Neue',sans-serif;pa
 .sim-result{display:grid;grid-template-columns:1fr 1fr;gap:8px;padding:12px;background:#f0f9ff;border-radius:10px;border:1px solid #bae6fd;}
 .hist-stats{display:flex;gap:12px;flex-wrap:wrap;}
 .hist-stat{flex:1 1 calc(50% - 6px);min-width:0;}
-.corr-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;width:100%;}
+.corr-wrap{width:100%;overflow-x:hidden;}
 input[type=number]{box-sizing:border-box;width:100%;}
 
 /* ロック画面 */
@@ -540,41 +540,64 @@ function renderSummary(){
     </div>
     <div class="card full">
       <div style="font-size:10px;color:#64748b;font-weight:700;letter-spacing:2px;margin-bottom:10px">📅 月次サマリー</div>
-      <div class="tbl-wrap">
-        <table style="font-size:11px;border-collapse:collapse">
-          <thead>
-            <tr style="border-bottom:2px solid #bfdbfe">
-              <th style="text-align:left;color:#64748b;padding:5px 8px;font-weight:700;white-space:nowrap">月</th>
-              <th style="color:#64748b;padding:5px 8px;font-weight:700;white-space:nowrap">月末評価額</th>
-              <th style="color:#64748b;padding:5px 8px;font-weight:700;white-space:nowrap">評価額増減</th>
-              <th style="color:#64748b;padding:5px 8px;font-weight:700;white-space:nowrap">月末含み益</th>
-              <th style="color:#64748b;padding:5px 8px;font-weight:700;white-space:nowrap">含み益増減</th>
-              <th style="color:#64748b;padding:5px 8px;font-weight:700;white-space:nowrap">損益率</th>
-            </tr>
-          </thead>
-          <tbody>
-          ${(()=>{
-            const ms = getMonths();
-            return ms.map((m,mi)=>{
-              const md = h.filter(d=>getMonth(d.date)===m);
-              const ml = md[md.length-1];
-              const pl = mi>0 ? h.filter(d=>getMonth(d.date)===ms[mi-1]).slice(-1)[0] : null;
-              const ec = ml&&pl ? ml.total-pl.total : null;
-              const pc = ml&&pl&&ml.pnl!=null&&pl.pnl!=null ? ml.pnl-pl.pnl : null;
-              const isL = mi===ms.length-1;
-              return `<tr style="border-bottom:1px solid #eff6ff;background:${isL?"rgba(59,130,246,0.04)":""}">
-                <td style="padding:6px 8px;font-weight:${isL?800:600};color:${isL?"#1e3a5f":"#475569"};white-space:nowrap">${m}${isL?" ✦":""}</td>
-                <td style="text-align:right;padding:6px 8px;font-weight:600;color:#1e293b;white-space:nowrap">${fmt(ml?.total)}</td>
-                <td style="text-align:right;padding:6px 8px;font-weight:700;color:${col(ec)};white-space:nowrap">${ec!=null?fmtSigned(ec):"—"}</td>
-                <td style="text-align:right;padding:6px 8px;font-weight:600;color:${col(ml?.pnl)};white-space:nowrap">${fmtSigned(ml?.pnl)}</td>
-                <td style="text-align:right;padding:6px 8px;font-weight:700;color:${col(pc)};white-space:nowrap">${pc!=null?fmtSigned(pc):"—"}</td>
-                <td style="text-align:right;padding:6px 8px;font-weight:700;color:${col(ml?.pnlPct)};white-space:nowrap">${fmtPct(ml?.pnlPct)}</td>
-              </tr>`;
-            }).join("");
-          })()}
-          </tbody>
-        </table>
-      </div>
+      <table style="width:100%;font-size:11px;border-collapse:collapse;table-layout:fixed">
+        <colgroup>
+          <col style="width:13%">
+          <col style="width:18%">
+          <col style="width:17%">
+          <col style="width:18%">
+          <col style="width:17%">
+          <col style="width:17%">
+        </colgroup>
+        <thead>
+          <tr style="border-bottom:2px solid #bfdbfe">
+            <th style="text-align:left;color:#64748b;padding:5px 4px;font-weight:700;font-size:10px">月</th>
+            <th style="color:#64748b;padding:5px 2px;font-weight:700;font-size:10px;text-align:right;word-break:keep-all">評価額</th>
+            <th style="color:#64748b;padding:5px 2px;font-weight:700;font-size:10px;text-align:right;word-break:keep-all">評価増減</th>
+            <th style="color:#64748b;padding:5px 2px;font-weight:700;font-size:10px;text-align:right;word-break:keep-all">含み益</th>
+            <th style="color:#64748b;padding:5px 2px;font-weight:700;font-size:10px;text-align:right;word-break:keep-all">益増減</th>
+            <th style="color:#64748b;padding:5px 2px;font-weight:700;font-size:10px;text-align:right;word-break:keep-all">損益率</th>
+          </tr>
+        </thead>
+        <tbody>
+        ${(()=>{
+          const ms = getMonths();
+          return ms.map((m,mi)=>{
+            const md = h.filter(d=>getMonth(d.date)===m);
+            const ml = md[md.length-1];
+            const pl = mi>0 ? h.filter(d=>getMonth(d.date)===ms[mi-1]).slice(-1)[0] : null;
+            const ec = ml&&pl ? ml.total-pl.total : null;
+            const pc = ml&&pl&&ml.pnl!=null&&pl.pnl!=null ? ml.pnl-pl.pnl : null;
+            const isL = mi===ms.length-1;
+            // compact formatter: ¥1,234万 instead of full number
+            const fmtC = v => {
+              if(v==null) return "—";
+              const n = Number(v);
+              if(Math.abs(n)>=1e8) return `¥${(n/1e8).toFixed(1)}億`;
+              if(Math.abs(n)>=1e4) return `¥${Math.round(n/1e4).toLocaleString("ja-JP")}万`;
+              return `¥${n.toLocaleString("ja-JP")}`;
+            };
+            const fmtCS = v => {
+              if(v==null) return "—";
+              const n = Number(v);
+              const sign = n>=0?"+":"-";
+              const abs = Math.abs(n);
+              if(abs>=1e8) return `${sign}¥${(abs/1e8).toFixed(1)}億`;
+              if(abs>=1e4) return `${sign}¥${Math.round(abs/1e4).toLocaleString("ja-JP")}万`;
+              return `${sign}¥${abs.toLocaleString("ja-JP")}`;
+            };
+            return `<tr style="border-bottom:1px solid #eff6ff;background:${isL?"rgba(59,130,246,0.04)":""}">
+              <td style="padding:6px 4px;font-weight:${isL?800:600};color:${isL?"#1e3a5f":"#475569"};font-size:11px">${m}${isL?"✦":""}</td>
+              <td style="text-align:right;padding:6px 2px;font-weight:600;color:#1e293b;font-size:11px">${fmtC(ml?.total)}</td>
+              <td style="text-align:right;padding:6px 2px;font-weight:700;color:${col(ec)};font-size:11px">${ec!=null?fmtCS(ec):"—"}</td>
+              <td style="text-align:right;padding:6px 2px;font-weight:600;color:${col(ml?.pnl)};font-size:11px">${fmtCS(ml?.pnl)}</td>
+              <td style="text-align:right;padding:6px 2px;font-weight:700;color:${col(pc)};font-size:11px">${pc!=null?fmtCS(pc):"—"}</td>
+              <td style="text-align:right;padding:6px 2px;font-weight:700;color:${col(ml?.pnlPct)};font-size:11px">${fmtPct(ml?.pnlPct)}</td>
+            </tr>`;
+          }).join("");
+        })()}
+        </tbody>
+      </table>
     </div>
     <div class="card full">
       <div style="font-size:10px;color:#64748b;font-weight:700;letter-spacing:2px;margin-bottom:10px">🍩 ポートフォリオ構成比</div>
@@ -1086,14 +1109,22 @@ function renderCorrMatrix() {
   const series=funds.map(getDR);
   const bg=v=>v===null?'#f8faff':v>=0.8?'#1d4ed8':v>=0.5?'#3b82f6':v>=0.2?'#93c5fd':v>=-0.2?'#e2e8f0':v>=-0.5?'#fca5a5':'#ef4444';
   const tc=v=>v===null?'#94a3b8':Math.abs(v||0)>=0.5?'#fff':'#1e293b';
-  let html=`<table style="border-collapse:collapse;font-size:11px;width:100%"><thead><tr><th style="padding:4px 6px"></th>`;
-  funds.forEach(f=>{html+=`<th style="padding:4px 6px;color:#64748b;font-weight:700;text-align:center;white-space:nowrap">${f.short}</th>`;});
+  // セルサイズをファンド数に応じて自動調整
+  const n=funds.length;
+  const cellPx = n<=4 ? 52 : n<=6 ? 42 : 34;
+  const fontSize = n<=4 ? 11 : n<=6 ? 10 : 9;
+  const labelSize = n<=4 ? 11 : n<=6 ? 10 : 9;
+  let html=`<table style="border-collapse:collapse;font-size:${fontSize}px;table-layout:fixed;width:100%"><colgroup><col style="width:auto">${funds.map(()=>`<col style="width:${cellPx}px">`).join('')}</colgroup><thead><tr><th style="padding:3px 2px"></th>`;
+  funds.forEach(f=>{
+    // shortが長い場合は改行表示
+    html+=`<th style="padding:3px 2px;color:#64748b;font-weight:700;text-align:center;font-size:${labelSize}px;overflow:hidden;text-overflow:ellipsis;max-width:${cellPx}px;white-space:nowrap" title="${f.short}">${f.short}</th>`;
+  });
   html+=`</tr></thead><tbody>`;
   funds.forEach((f,i)=>{
-    html+=`<tr><td style="padding:4px 6px;font-weight:700;color:#64748b;white-space:nowrap">${f.short}</td>`;
+    html+=`<tr><td style="padding:3px 4px;font-weight:700;color:#64748b;font-size:${labelSize}px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:60px" title="${f.short}">${f.short}</td>`;
     funds.forEach((_,j)=>{
       const v=i===j?1:corr(series[i],series[j]);
-      html+=`<td style="padding:6px 8px;text-align:center;background:${bg(v)};color:${tc(v)};font-weight:${i===j?900:700};border-radius:3px;border:1px solid #f0f7ff;white-space:nowrap">${v!=null?v.toFixed(2):"—"}</td>`;
+      html+=`<td style="padding:5px 2px;text-align:center;background:${bg(v)};color:${tc(v)};font-weight:${i===j?900:700};border-radius:3px;border:1px solid #f0f7ff">${v!=null?v.toFixed(2):"—"}</td>`;
     });
     html+=`</tr>`;
   });
