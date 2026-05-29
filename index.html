@@ -1042,26 +1042,41 @@ function renderAnalysis() {
           <div class="card-label" style="margin-bottom:4px">毎月積立額</div>
           <input type="number" id="simMonthly" value="${simMonthly}" min="1000" step="1000"
             style="border:1px solid #bfdbfe;border-radius:8px;padding:6px 8px;font-size:13px;font-weight:700;color:#1e3a5f;background:#f8faff"
-            oninput="simMonthly=+this.value||10000;renderSimChart()">
+            oninput="simMonthly=+this.value||10000;renderSimChart();renderMilestones()">
           <div style="font-size:10px;color:#94a3b8;margin-top:2px">円/月</div>
         </div>
         <div>
           <div class="card-label" style="margin-bottom:4px">想定年率</div>
           <input type="number" id="simRate" value="${simRate}" min="0.1" max="50" step="0.1"
             style="border:1px solid #bfdbfe;border-radius:8px;padding:6px 8px;font-size:13px;font-weight:700;color:#1e3a5f;background:#f8faff"
-            oninput="simRate=+this.value||5;renderSimChart()">
+            oninput="simRate=+this.value||5;renderSimChart();renderMilestones()">
           <div style="font-size:10px;color:#94a3b8;margin-top:2px">%（実績CAGR: ${defaultRate}%）</div>
         </div>
         <div>
           <div class="card-label" style="margin-bottom:4px">積立期間</div>
           <input type="number" id="simYears" value="${simYears}" min="1" max="50" step="1"
             style="border:1px solid #bfdbfe;border-radius:8px;padding:6px 8px;font-size:13px;font-weight:700;color:#1e3a5f;background:#f8faff"
-            oninput="simYears=+this.value||20;renderSimChart()">
+            oninput="simYears=+this.value||20;renderSimChart();renderMilestones()">
           <div style="font-size:10px;color:#94a3b8;margin-top:2px">年</div>
         </div>
       </div>
       <div id="simResult" style="margin-bottom:12px"></div>
       <div style="position:relative;height:200px"><canvas id="simChart"></canvas></div>
+    </div>
+    <div class="card" style="margin-bottom:12px">
+      <div style="font-size:10px;color:#64748b;font-weight:700;letter-spacing:2px;margin-bottom:4px">🏆 マイルストーン到達予測</div>
+      <div style="font-size:10px;color:#94a3b8;margin-bottom:12px">現在のCAGR・毎月積立額をもとに逆算</div>
+      <div id="milestoneResult"></div>
+      <div style="margin-top:12px;padding-top:10px;border-top:1px solid #e2e8f0">
+        <div style="font-size:10px;color:#64748b;font-weight:700;margin-bottom:6px">カスタム目標額を逆算</div>
+        <div style="display:flex;gap:8px;align-items:center">
+          <input type="number" id="customGoal" placeholder="目標額（万円）" min="100" step="100"
+            style="flex:1;border:1px solid #bfdbfe;border-radius:8px;padding:6px 8px;font-size:12px;font-weight:700;color:#1e3a5f;background:#f8faff">
+          <button onclick="renderMilestones()"
+            style="border:none;background:#3b82f6;color:#fff;border-radius:8px;padding:6px 12px;font-size:12px;font-weight:700;cursor:pointer">逆算</button>
+        </div>
+        <div id="customGoalResult" style="margin-top:8px"></div>
+      </div>
     </div>
     <div class="card" style="margin-bottom:12px">
       <div style="font-size:10px;color:#64748b;font-weight:700;letter-spacing:2px;margin-bottom:10px">🔗 ファンド間 相関分析</div>
@@ -1074,7 +1089,114 @@ function renderAnalysis() {
       <div style="position:relative;height:180px"><canvas id="histChart"></canvas></div>
     </div>`;
 
-  renderSimChart(); renderCorrMatrix(); renderHistogram();
+  renderSimChart(); renderCorrMatrix(); renderHistogram(); renderMilestones();
+}
+
+function renderMilestones() {
+  const h = DATA.history;
+  const latest = h[h.length-1];
+  const base = latest.total;
+  const monthly = simMonthly || 10000;
+  const rate = (simRate || 5) / 100;
+  const mr = rate / 12;
+
+  function monthsToReach(target) {
+    if (base >= target) return 0;
+    if (mr <= 0) {
+      const m = Math.ceil((target - base) / monthly);
+      return m > 0 ? m : null;
+    }
+    for (let n = 1; n <= 12 * 100; n++) {
+      const v = base * (1 + mr) ** n + monthly * ((1 + mr) ** n - 1) / mr;
+      if (v >= target) return n;
+    }
+    return null;
+  }
+
+  function monthsToDate(n) {
+    const now = new Date();
+    now.setMonth(now.getMonth() + n);
+    return now;
+  }
+
+  function fmtDate(d) {
+    return `${d.getFullYear()}年${d.getMonth()+1}月`;
+  }
+
+  function daysUntil(d) {
+    return Math.max(0, Math.round((d - new Date()) / 86400000));
+  }
+
+  const milestones = [
+    { label: "500万", value: 5000000, emoji: "🌱", color: "#10b981", bg: "#ecfdf5" },
+    { label: "1,000万", value: 10000000, emoji: "🎯", color: "#3b82f6", bg: "#eff6ff" },
+    { label: "3,000万 (アッパーマス)", value: 30000000, emoji: "🚀", color: "#7c3aed", bg: "#f5f3ff" },
+    { label: "5,000万 (準富裕層)", value: 50000000, emoji: "💎", color: "#0369a1", bg: "#f0f9ff" },
+    { label: "1億 (富裕層)", value: 100000000, emoji: "👑", color: "#d97706", bg: "#fffbeb" },
+  ];
+
+  const fmtV = v => v >= 1e8 ? `${(v/1e8).toFixed(v%1e8===0?0:1)}億円` : `${(v/1e4).toLocaleString("ja-JP")}万円`;
+
+  const cards = milestones.map(ms => {
+    const n = monthsToReach(ms.value);
+    const reached = base >= ms.value;
+    if (reached) {
+      return `<div style="background:${ms.bg};border-radius:10px;padding:10px 12px;margin-bottom:8px;border:1.5px solid ${ms.color}40">
+        <div style="display:flex;align-items:center;gap:8px">
+          <span style="font-size:20px">${ms.emoji}</span>
+          <div style="flex:1"><div style="font-size:11px;font-weight:800;color:${ms.color}">${ms.label}</div><div style="font-size:10px;color:#64748b">${fmtV(ms.value)}</div></div>
+          <div style="font-size:13px;font-weight:900;color:${ms.color}">✅ 達成済み！</div>
+        </div></div>`;
+    }
+    if (n === null) {
+      return `<div style="background:#f8fafc;border-radius:10px;padding:10px 12px;margin-bottom:8px;border:1.5px solid #e2e8f0">
+        <div style="display:flex;align-items:center;gap:8px">
+          <span style="font-size:20px">${ms.emoji}</span>
+          <div style="flex:1"><div style="font-size:11px;font-weight:800;color:#94a3b8">${ms.label}</div><div style="font-size:10px;color:#94a3b8">${fmtV(ms.value)}</div></div>
+          <div style="font-size:10px;color:#94a3b8;text-align:right">100年以内に<br>到達困難</div>
+        </div></div>`;
+    }
+    const arrivalDate = monthsToDate(n);
+    const days = daysUntil(arrivalDate);
+    const yrs = Math.floor(n/12), mos = n%12;
+    const dur = yrs>0 ? `${yrs}年${mos>0?mos+"ヶ月":""}後` : `${mos}ヶ月後`;
+    return `<div style="background:${ms.bg};border-radius:10px;padding:10px 12px;margin-bottom:8px;border:1.5px solid ${ms.color}40">
+      <div style="display:flex;align-items:center;gap:8px">
+        <span style="font-size:20px">${ms.emoji}</span>
+        <div style="flex:1"><div style="font-size:11px;font-weight:800;color:${ms.color}">${ms.label}</div><div style="font-size:10px;color:#64748b">${fmtV(ms.value)}</div></div>
+        <div style="text-align:right">
+          <div style="font-size:13px;font-weight:900;color:${ms.color}">${fmtDate(arrivalDate)}</div>
+          <div style="font-size:10px;color:#64748b">${dur}（残り<strong style="color:${ms.color}">${days.toLocaleString()}</strong>日）</div>
+        </div>
+      </div></div>`;
+  });
+
+  const el = document.getElementById("milestoneResult");
+  if (el) el.innerHTML = cards.join("");
+
+  const customInput = document.getElementById("customGoal");
+  const customEl = document.getElementById("customGoalResult");
+  if (customInput && customEl && customInput.value) {
+    const customVal = parseFloat(customInput.value) * 10000;
+    if (customVal > 0) {
+      const n2 = monthsToReach(customVal);
+      if (base >= customVal) {
+        customEl.innerHTML = `<div style="font-size:12px;font-weight:700;color:#10b981">✅ ${fmtV(customVal)}はすでに達成済みです！</div>`;
+      } else if (n2 === null) {
+        customEl.innerHTML = `<div style="font-size:12px;color:#94a3b8">現在の条件では100年以内に到達できません</div>`;
+      } else {
+        const ad = monthsToDate(n2);
+        const days2 = daysUntil(ad);
+        const yrs2 = Math.floor(n2/12), mos2 = n2%12;
+        const dur2 = yrs2>0 ? `${yrs2}年${mos2>0?mos2+"ヶ月":""}後` : `${mos2}ヶ月後`;
+        customEl.innerHTML = `<div style="background:#eff6ff;border-radius:8px;padding:10px 12px;border:1.5px solid #bfdbfe">
+          <div style="font-size:11px;color:#64748b;margin-bottom:2px">${fmtV(customVal)} 到達予測</div>
+          <div style="font-size:16px;font-weight:900;color:#1d4ed8">${fmtDate(ad)}</div>
+          <div style="font-size:11px;color:#3b82f6">${dur2}（残り <strong>${days2.toLocaleString()}</strong> 日）</div>
+        </div>`;
+      }
+    }
+  }
 }
 
 function renderSimChart() {
