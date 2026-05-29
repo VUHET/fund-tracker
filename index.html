@@ -686,13 +686,29 @@ function renderTotal(){
     const alertBg = isAlert ? (isUp ? "rgba(16,185,129,0.08)" : "rgba(244,63,94,0.08)") : "transparent";
     const alertBorder = isAlert ? (isUp ? "2px solid rgba(16,185,129,0.3)" : "2px solid rgba(244,63,94,0.3)") : "none";
     const alertIcon = isAlert ? (isUp ? "🚀" : "💥") : "　";
+    const fmtC = v => {
+      if(v==null) return "—";
+      const n = Number(v);
+      if(Math.abs(n)>=1e8) return `¥${(n/1e8).toFixed(1)}億`;
+      if(Math.abs(n)>=1e4) return `¥${Math.round(n/1e4).toLocaleString("ja-JP")}万`;
+      return `¥${n.toLocaleString("ja-JP")}`;
+    };
+    const fmtCS = v => {
+      if(v==null) return "—";
+      const n = Number(v);
+      const sign = n>=0?"+":"-";
+      const abs = Math.abs(n);
+      if(abs>=1e8) return `${sign}¥${(abs/1e8).toFixed(1)}億`;
+      if(abs>=1e4) return `${sign}¥${Math.round(abs/1e4).toLocaleString("ja-JP")}万`;
+      return `${sign}¥${abs.toLocaleString("ja-JP")}`;
+    };
     return `<tr style="border-bottom:1px solid #eff6ff;background:${alertBg};outline:${alertBorder}">
-      <td style="color:#64748b;padding:7px 4px;white-space:nowrap">${alertIcon}</td>
-      <td style="color:#64748b;padding:7px 4px;white-space:nowrap">${d.date}</td>
-      <td style="font-weight:600;color:#1e293b;padding:7px 4px;text-align:right;white-space:nowrap">${fmt(d.total)}</td>
-      <td style="font-weight:600;color:${col(d.pnl)};padding:7px 4px;text-align:right;white-space:nowrap">${fmtSigned(d.pnl)}</td>
-      <td style="font-weight:700;color:${col(d.pnlPct)};padding:7px 4px;text-align:right;white-space:nowrap">${fmtPct(d.pnlPct)}</td>
-      <td style="font-weight:${isAlert?"800":"600"};color:${col(dayChangeVal)};padding:7px 4px;text-align:right;white-space:nowrap">${dayChangeStr}</td>
+      <td style="color:#64748b;padding:6px 2px;font-size:12px">${alertIcon}</td>
+      <td style="color:#64748b;padding:6px 4px;font-size:11px">${d.date}</td>
+      <td style="font-weight:600;color:#1e293b;padding:6px 2px;text-align:right;font-size:11px">${fmtC(d.total)}</td>
+      <td style="font-weight:600;color:${col(d.pnl)};padding:6px 2px;text-align:right;font-size:11px">${fmtCS(d.pnl)}</td>
+      <td style="font-weight:700;color:${col(d.pnlPct)};padding:6px 2px;text-align:right;font-size:11px">${fmtPct(d.pnlPct)}</td>
+      <td style="font-weight:${isAlert?"800":"600"};color:${col(dayChangeVal)};padding:6px 2px;text-align:right;font-size:11px">${dayChangeStr}</td>
     </tr>`;
   }).join("");
 
@@ -714,19 +730,25 @@ function renderTotal(){
         <button class="mbtn${dayChangeMode==='amt'?' active':''}" onclick="switchDayChangeMode('amt')">含み益増減</button>
         <button class="mbtn${dayChangeMode==='pnlPct'?' active':''}" onclick="switchDayChangeMode('pnlPct')">含み益増減％</button>
       </div>
-      <div class="tbl-wrap" style="margin-top:6px">
-        <table style="font-size:12px;border-collapse:collapse">
-          <thead><tr>
-            <th style="width:24px;padding:6px 4px"></th>
-            <th style="padding:6px 8px;white-space:nowrap">日付</th>
-            <th style="padding:6px 8px;white-space:nowrap">評価額</th>
-            <th style="padding:6px 8px;white-space:nowrap">含み損益</th>
-            <th style="padding:6px 8px;white-space:nowrap">損益率</th>
-            <th style="padding:6px 8px;white-space:nowrap">前日比</th>
-          </tr></thead>
-          <tbody>${rows}</tbody>
-        </table>
-      </div>
+      <table style="width:100%;font-size:11px;border-collapse:collapse;table-layout:fixed;margin-top:6px">
+        <colgroup>
+          <col style="width:20px">
+          <col style="width:13%">
+          <col style="width:22%">
+          <col style="width:22%">
+          <col style="width:14%">
+          <col style="width:20%">
+        </colgroup>
+        <thead><tr>
+          <th style="padding:5px 2px"></th>
+          <th style="padding:5px 4px;font-size:10px;color:#64748b;font-weight:700;text-align:left">日付</th>
+          <th style="padding:5px 2px;font-size:10px;color:#64748b;font-weight:700;text-align:right">評価額</th>
+          <th style="padding:5px 2px;font-size:10px;color:#64748b;font-weight:700;text-align:right">含み損益</th>
+          <th style="padding:5px 2px;font-size:10px;color:#64748b;font-weight:700;text-align:right">損益率</th>
+          <th style="padding:5px 2px;font-size:10px;color:#64748b;font-weight:700;text-align:right">前日比</th>
+        </tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
     </div>`;
   buildMainChart();
 }
