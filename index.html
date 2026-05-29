@@ -922,6 +922,60 @@ function renderFunds(){
   const fundCards = fundList.map(({f, lf, diff, monthPnl, curPnl, drawdown, maxPnlPct, maxDate, ddAlert}) => {
     const ddStr = drawdown!=null ? (drawdown>=0?"±0":drawdown.toFixed(2)+"%") : "—";
     const ddColor = drawdown!=null && drawdown < 0 ? "#e11d48" : "#0d9488";
+
+    // ── 機能1: 平均取得単価ライン ──
+    // 現在の基準価額 vs コスト基準価額の距離感を計算
+    const curNav = lf && f.cost_nav ? f.cost_nav*(1+lf.pnlPct/100) : null;
+    const costNav = f.cost_nav || null;
+    let costGapPct = null, costGapStr = "", costBadge = "";
+    if (curNav && costNav) {
+      costGapPct = (curNav - costNav) / costNav * 100;
+      costGapStr = `${costGapPct>=0?"+":""}${costGapPct.toFixed(2)}%`;
+      const aboveBelow = costGapPct >= 0 ? "上" : "下";
+      const badgeColor = costGapPct >= 0 ? "#0d9488" : "#e11d48";
+      const badgeBg   = costGapPct >= 0 ? "#ecfdf5" : "#fff1f2";
+      costBadge = `<div style="display:inline-flex;align-items:center;gap:4px;background:${badgeBg};border:1px solid ${badgeColor}40;border-radius:20px;padding:2px 10px;font-size:11px;font-weight:800;color:${badgeColor}">
+        ${costGapPct>=0?"✅":"⚠️"} コスト比 ${costGapStr} ${aboveBelow}
+      </div>`;
+    }
+
+    // ── 機能2: SMAクロス & RSI バッジ（ファンド個別） ──
+    const allValid = f.data.filter(d=>d.pnlPct!=null);
+    let smaBadge = "", rsiBadge = "";
+    if (allValid.length >= 20) {
+      const navSeries = allValid.map(d => f.cost_nav*(1+d.pnlPct/100));
+      const avg = (arr, n) => arr.length>=n ? arr.slice(-n).reduce((a,b)=>a+b,0)/n : null;
+      const sma5  = avg(navSeries, 5);
+      const sma20 = avg(navSeries, 20);
+      const prevSma5  = navSeries.length>=6  ? navSeries.slice(-6,-1).reduce((a,b)=>a+b,0)/5  : null;
+      const prevSma20 = navSeries.length>=21 ? navSeries.slice(-21,-1).reduce((a,b)=>a+b,0)/20 : null;
+      if (sma5!=null && sma20!=null && prevSma5!=null && prevSma20!=null) {
+        const isGolden = prevSma5<=prevSma20 && sma5>sma20;
+        const isDead   = prevSma5>=prevSma20 && sma5<sma20;
+        const isBullish = sma5 > sma20;
+        if (isGolden)      smaBadge = `<span style="background:#ecfdf5;border:1px solid #6ee7b7;border-radius:20px;padding:2px 8px;font-size:10px;font-weight:800;color:#059669">🌟 ゴールデンクロス</span>`;
+        else if (isDead)   smaBadge = `<span style="background:#fff1f2;border:1px solid #fca5a5;border-radius:20px;padding:2px 8px;font-size:10px;font-weight:800;color:#dc2626">💀 デッドクロス</span>`;
+        else if (isBullish) smaBadge = `<span style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:20px;padding:2px 8px;font-size:10px;font-weight:700;color:#2563eb">📈 上昇トレンド中</span>`;
+        else                smaBadge = `<span style="background:#fff7ed;border:1px solid #fed7aa;border-radius:20px;padding:2px 8px;font-size:10px;font-weight:700;color:#c2410c">📉 下落トレンド中</span>`;
+      }
+      // 簡易RSI(14日)
+      if (navSeries.length >= 15) {
+        const changes = navSeries.slice(-15).slice(1).map((v,i)=>v-navSeries.slice(-15)[i]);
+        const gains = changes.filter(c=>c>0).reduce((a,b)=>a+b,0)/14;
+        const losses = Math.abs(changes.filter(c=>c<0).reduce((a,b)=>a+b,0))/14;
+        const rs = losses===0 ? 100 : gains/losses;
+        const rsi = 100 - 100/(1+rs);
+        const rsiInt = Math.round(rsi);
+        let rsiLabel, rsiColor, rsiBg;
+        if (rsiInt >= 70)      { rsiLabel="🔥 過熱気味"; rsiColor="#dc2626"; rsiBg="#fff1f2"; }
+        else if (rsiInt >= 55) { rsiLabel="📈 やや強め"; rsiColor="#0d9488"; rsiBg="#ecfdf5"; }
+        else if (rsiInt >= 45) { rsiLabel="➡️ 中立"; rsiColor="#64748b"; rsiBg="#f1f5f9"; }
+        else if (rsiInt >= 30) { rsiLabel="📉 やや弱め"; rsiColor="#ea580c"; rsiBg="#fff7ed"; }
+        else                   { rsiLabel="💙 バーゲン域"; rsiColor="#7c3aed"; rsiBg="#f5f3ff"; }
+        rsiBadge = `<span style="background:${rsiBg};border:1px solid ${rsiColor}40;border-radius:20px;padding:2px 8px;font-size:10px;font-weight:700;color:${rsiColor}">RSI ${rsiInt} ${rsiLabel}</span>`;
+      }
+    }
+
     return `<div class="fund-card" style="border-left:3px solid ${f.color};${ddAlert?`background:${ddAlert.bg};`:""}">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px">
         <div style="font-size:13px;font-weight:700">${f.name}</div>
@@ -934,7 +988,24 @@ function renderFunds(){
         ${curPnl!=null ? `<div><div class="card-label">含み益</div><div style="font-size:15px;font-weight:700;color:${col(curPnl)}">${fmtSigned(curPnl)}</div></div>` : ""}
         <div><div class="card-label">基準価額</div><div style="font-size:13px;font-weight:600;color:#64748b">${fmt(lf?.nav)}</div></div>
         <div><div class="card-label">最高値比（DD）</div><div style="font-size:13px;font-weight:700;color:${ddColor}">${ddStr}${maxDate?`<span style="font-size:10px;color:#94a3b8;margin-left:4px">最高:${maxDate}</span>`:""}</div></div>
-      </div></div>`;
+      </div>
+      ${costBadge ? `<div style="margin-top:10px;border-top:1px solid #f1f5f9;padding-top:8px">
+        <div style="font-size:10px;color:#94a3b8;margin-bottom:6px;font-weight:700">🎯 コスト比・テクニカル</div>
+        <div style="display:flex;flex-wrap:wrap;gap:5px;align-items:center">
+          ${costBadge}
+          ${smaBadge}
+          ${rsiBadge}
+        </div>
+      </div>` : ""}
+      ${f.cost_nav && allValid.length >= 2 ? `<div style="margin-top:10px;border-top:1px solid #f1f5f9;padding-top:8px">
+        <div style="font-size:10px;color:#94a3b8;margin-bottom:4px;font-weight:700">📊 基準価額 vs 平均取得単価</div>
+        <div style="position:relative;height:100px"><canvas id="fundMiniChart_${f.short.replace(/[^a-zA-Z0-9]/g,'_')}"></canvas></div>
+        <div style="display:flex;gap:12px;margin-top:4px">
+          <div style="display:flex;align-items:center;gap:4px;font-size:10px;color:#64748b"><div style="width:12px;height:2px;background:${f.color};border-radius:2px"></div>基準価額</div>
+          <div style="display:flex;align-items:center;gap:4px;font-size:10px;color:#f59e0b"><div style="width:12px;height:2px;background:#f59e0b;border-radius:2px;border-top:1px dashed #f59e0b"></div>平均取得単価</div>
+        </div>
+      </div>` : ""}
+    </div>`;
   }).join("");
 
   const displayFunds = fundsView==="total"
@@ -961,6 +1032,40 @@ function renderFunds(){
     </div>
     ${fundCards}`;
   buildFundsChart(displayFunds);
+  // ── 機能1: ミニチャート（基準価額 vs 平均取得単価ライン）描画 ──
+  setTimeout(() => {
+    DATA.funds.forEach(f => {
+      if (!f.cost_nav) return;
+      const allValid = f.data.filter(d=>d.pnlPct!=null);
+      if (allValid.length < 2) return;
+      const canvasId = 'fundMiniChart_' + f.short.replace(/[^a-zA-Z0-9]/g,'_');
+      const ctx2 = document.getElementById(canvasId)?.getContext('2d');
+      if (!ctx2) return;
+      const chartKey = 'mini_' + canvasId;
+      if (charts[chartKey]) { charts[chartKey].destroy(); delete charts[chartKey]; }
+      const navData = allValid.map(d => parseFloat((f.cost_nav*(1+d.pnlPct/100)).toFixed(0)));
+      const labels2 = allValid.map(d => d.date);
+      const costLine2 = allValid.map(() => f.cost_nav);
+      const r2 = dotSize(navData.length);
+      charts[chartKey] = new Chart(ctx2, {type:'line',
+        data:{labels:labels2,datasets:[
+          {label:'基準価額',data:navData,borderColor:f.color,backgroundColor:f.color+'15',
+           borderWidth:2,pointRadius:r2,pointHoverRadius:r2+1,tension:0.3,fill:true,order:1},
+          {label:'平均取得単価',data:costLine2,borderColor:'#f59e0b',backgroundColor:'transparent',
+           borderWidth:1.5,borderDash:[5,3],pointRadius:0,tension:0,fill:false,order:2}
+        ]},
+        options:{responsive:true,maintainAspectRatio:false,
+          plugins:{legend:{display:false},
+            tooltip:{callbacks:{label:c=>`${c.dataset.label}：${fmt(c.raw)}`}}},
+          scales:{
+            x:{display:false,grid:{display:false}},
+            y:{grid:{color:'#f1f5f9'},ticks:{color:'#94a3b8',font:{size:9},maxTicksLimit:4,
+              callback:v=>`¥${(v/1e4).toFixed(0)}万`}}
+          }
+        }
+      });
+    });
+  }, 80);
 }
 function switchFundsView(v){fundsView=v;destroyChart('funds');renderFunds();}
 function buildFundsChart(displayFunds){
@@ -1078,6 +1183,10 @@ function renderAnalysis() {
         <div id="customGoalResult" style="margin-top:8px"></div>
       </div>
     </div>
+    <div class="card" style="margin-bottom:12px;background:linear-gradient(135deg,#f0fdf4,#ecfdf5);border-color:#6ee7b7">
+      <div style="font-size:10px;color:#065f46;font-weight:700;letter-spacing:2px;margin-bottom:12px">⚡ モメンタム・テクニカル分析（ポートフォリオ全体）</div>
+      <div id="momentumPanel"></div>
+    </div>
     <div class="card" style="margin-bottom:12px">
       <div style="font-size:10px;color:#64748b;font-weight:700;letter-spacing:2px;margin-bottom:10px">🔗 ファンド間 相関分析</div>
       <div class="corr-wrap" id="corrMatrix"></div>
@@ -1089,7 +1198,7 @@ function renderAnalysis() {
       <div style="position:relative;height:180px"><canvas id="histChart"></canvas></div>
     </div>`;
 
-  renderSimChart(); renderCorrMatrix(); renderHistogram(); renderMilestones();
+  renderSimChart(); renderCorrMatrix(); renderHistogram(); renderMilestones(); renderMomentum();
 }
 
 function renderMilestones() {
@@ -1307,6 +1416,131 @@ function renderHistogram() {
       plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>`${c.raw}日`}}},
       scales:{x:{grid:{display:false},ticks:{color:'#94a3b8',font:{size:9},maxTicksLimit:10}},
         y:{grid:{color:'#e2e8f0'},ticks:{color:'#94a3b8',font:{size:9}}}}}});
+}
+
+// ── 機能2: モメンタム・テクニカル分析 ──
+function renderMomentum() {
+  const el = document.getElementById('momentumPanel');
+  if (!el) return;
+  const h = DATA.history;
+  if (h.length < 6) { el.innerHTML = '<div style="font-size:12px;color:#94a3b8">データが不足しています（6日以上必要）</div>'; return; }
+
+  // ポートフォリオ全体の評価額系列で SMA・RSI を計算
+  const totalSeries = h.map(d => d.total);
+
+  // SMA 計算
+  const smaOf = (n) => totalSeries.length>=n ? totalSeries.slice(-n).reduce((a,b)=>a+b,0)/n : null;
+  const sma5  = smaOf(5);
+  const sma20 = smaOf(Math.min(20, h.length));
+  const prevSma5  = totalSeries.length>=6  ? totalSeries.slice(-6,-1).reduce((a,b)=>a+b,0)/5  : null;
+  const prevSma20 = totalSeries.length>=21 ? totalSeries.slice(-21,-1).reduce((a,b)=>a+b,0)/20 : null;
+
+  const hasCross = sma5&&sma20&&prevSma5&&prevSma20;
+  const isGolden  = hasCross && prevSma5<=prevSma20 && sma5>sma20;
+  const isDead    = hasCross && prevSma5>=prevSma20 && sma5<sma20;
+  const isBullish = sma5 && sma20 && sma5 > sma20;
+
+  let crossLabel, crossColor, crossBg, crossIcon;
+  if (isGolden)       { crossIcon="🌟"; crossLabel="ゴールデンクロス発生！"; crossColor="#059669"; crossBg="#ecfdf5"; }
+  else if (isDead)    { crossIcon="💀"; crossLabel="デッドクロス発生！"; crossColor="#dc2626"; crossBg="#fff1f2"; }
+  else if (!hasCross) { crossIcon="➡️"; crossLabel="データ不足（20日分必要）"; crossColor="#94a3b8"; crossBg="#f8fafc"; }
+  else if (isBullish) { crossIcon="📈"; crossLabel="上昇トレンド中（5MA > 20MA）"; crossColor="#2563eb"; crossBg="#eff6ff"; }
+  else                { crossIcon="📉"; crossLabel="下落トレンド中（5MA < 20MA）"; crossColor="#c2410c"; crossBg="#fff7ed"; }
+
+  // SMAチャート用データ（直近30件）
+  const recent = h.slice(-30);
+
+  // RSI(14) 計算
+  let rsiHtml = "";
+  if (h.length >= 15) {
+    const changes = totalSeries.slice(-15).slice(1).map((v,i)=>v - totalSeries.slice(-15)[i]);
+    const gains  = changes.filter(c=>c>0).reduce((a,b)=>a+b,0)/14;
+    const losses = Math.abs(changes.filter(c=>c<0).reduce((a,b)=>a+b,0))/14;
+    const rs = losses===0 ? 100 : gains/losses;
+    const rsi = Math.round(100 - 100/(1+rs));
+    const pct = rsi; // 0-100 をそのまま %幅に使う
+    let rsiLabel, rsiColor, rsiZone;
+    if (rsi>=70)      { rsiLabel=`過熱気味 (${rsi})`; rsiColor="#dc2626"; rsiZone="買われすぎゾーン"; }
+    else if (rsi>=55) { rsiLabel=`やや強め (${rsi})`; rsiColor="#0d9488"; rsiZone=""; }
+    else if (rsi>=45) { rsiLabel=`中立 (${rsi})`; rsiColor="#64748b"; rsiZone=""; }
+    else if (rsi>=30) { rsiLabel=`やや弱め (${rsi})`; rsiColor="#ea580c"; rsiZone=""; }
+    else              { rsiLabel=`バーゲン域！ (${rsi})`; rsiColor="#7c3aed"; rsiZone="売られすぎゾーン＝買い増し検討"; }
+
+    // メーターバー
+    rsiHtml = `
+      <div style="margin-top:12px">
+        <div style="font-size:10px;color:#064e3b;font-weight:700;margin-bottom:6px">📊 RSI（14日）— 相対力指数</div>
+        <div style="position:relative;height:20px;border-radius:10px;overflow:hidden;background:linear-gradient(to right,#7c3aed,#3b82f6,#0d9488,#f59e0b,#dc2626)">
+          <div style="position:absolute;top:0;bottom:0;left:${pct}%;width:3px;background:#fff;border-radius:2px;transform:translateX(-50%);box-shadow:0 0 6px rgba(0,0,0,0.5)"></div>
+        </div>
+        <div style="display:flex;justify-content:space-between;font-size:9px;color:#94a3b8;margin-top:2px;padding:0 2px">
+          <span>0 売られすぎ</span><span>30</span><span>50</span><span>70</span><span>買われすぎ 100</span>
+        </div>
+        <div style="margin-top:8px;display:flex;align-items:center;gap:8px">
+          <div style="font-size:22px;font-weight:900;color:${rsiColor}">${rsi}</div>
+          <div>
+            <div style="font-size:12px;font-weight:700;color:${rsiColor}">${rsiLabel}</div>
+            ${rsiZone ? `<div style="font-size:10px;color:${rsiColor};font-weight:600">${rsiZone}</div>` : ""}
+          </div>
+        </div>
+      </div>`;
+  }
+
+  el.innerHTML = `
+    <div style="background:${crossBg};border-radius:10px;padding:10px 12px;border:1.5px solid ${crossColor}40;margin-bottom:12px">
+      <div style="font-size:10px;color:#064e3b;font-weight:700;margin-bottom:6px">📈 移動平均クロス（5MA / 20MA）</div>
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
+        <span style="font-size:22px">${crossIcon}</span>
+        <div>
+          <div style="font-size:13px;font-weight:800;color:${crossColor}">${crossLabel}</div>
+          ${sma5&&sma20 ? `<div style="font-size:10px;color:#64748b;margin-top:2px">5MA: ${fmt(Math.round(sma5))} ／ 20MA: ${fmt(Math.round(sma20))}</div>` : ""}
+        </div>
+      </div>
+      <div style="position:relative;height:100px"><canvas id="momentumChart"></canvas></div>
+      <div style="display:flex;gap:12px;margin-top:4px">
+        <div style="display:flex;align-items:center;gap:4px;font-size:10px;color:#64748b"><div style="width:12px;height:2px;background:#3b82f6;border-radius:2px"></div>評価額</div>
+        <div style="display:flex;align-items:center;gap:4px;font-size:10px;color:#0d9488"><div style="width:12px;height:2px;background:#0d9488;border-radius:2px"></div>5MA</div>
+        <div style="display:flex;align-items:center;gap:4px;font-size:10px;color:#f59e0b"><div style="width:12px;height:2px;background:#f59e0b;border-radius:2px;border-top:1px dashed #f59e0b"></div>20MA</div>
+      </div>
+    </div>
+    ${rsiHtml}
+    <div style="font-size:10px;color:#94a3b8;margin-top:10px">※ 移動平均・RSIはポートフォリオ合計評価額から算出した参考値です</div>`;
+
+  // SMAチャート描画
+  setTimeout(() => {
+    const ctx3 = document.getElementById('momentumChart')?.getContext('2d');
+    if (!ctx3) return;
+    if (charts['momentum']) { charts['momentum'].destroy(); delete charts['momentum']; }
+    const sma5Arr  = recent.map((_,i,arr) => {
+      const sl = arr.slice(0,i+1);
+      return sl.length>=5 ? sl.slice(-5).reduce((a,b)=>a+b.total,0)/5 : null;
+    });
+    const sma20Arr = recent.map((_,i,arr) => {
+      // 直近30件なのでグローバルのhからオフセット計算
+      const globalIdx = h.findIndex(d=>d.date===arr[i].date);
+      const sl = h.slice(0,globalIdx+1);
+      return sl.length>=20 ? sl.slice(-20).reduce((a,b)=>a+b.total,0)/20 : null;
+    });
+    charts['momentum'] = new Chart(ctx3, {type:'line',
+      data:{labels:recent.map(d=>d.date),datasets:[
+        {label:'評価額',data:recent.map(d=>d.total),borderColor:'#3b82f6',backgroundColor:'rgba(59,130,246,0.06)',
+         borderWidth:2,pointRadius:0,tension:0.3,fill:true,order:1},
+        {label:'5MA',data:sma5Arr,borderColor:'#0d9488',backgroundColor:'transparent',
+         borderWidth:1.5,pointRadius:0,tension:0.3,spanGaps:true,order:2},
+        {label:'20MA',data:sma20Arr,borderColor:'#f59e0b',backgroundColor:'transparent',
+         borderWidth:1.5,borderDash:[5,3],pointRadius:0,tension:0.3,spanGaps:true,order:3}
+      ]},
+      options:{responsive:true,maintainAspectRatio:false,
+        plugins:{legend:{display:false},
+          tooltip:{callbacks:{label:c=>`${c.dataset.label}：${fmt(Math.round(c.raw||0))}`}}},
+        scales:{
+          x:{display:false,grid:{display:false}},
+          y:{grid:{color:'#f1f5f9'},ticks:{color:'#94a3b8',font:{size:9},maxTicksLimit:4,
+            callback:v=>`¥${(v/1e6).toFixed(1)}M`}}
+        }
+      }
+    });
+  }, 60);
 }
 
 
