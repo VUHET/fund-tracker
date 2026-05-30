@@ -98,6 +98,22 @@ select{background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;color:#1e40
 .date-picker-selects{display:flex;gap:4px;}
 .date-picker-selects select{flex:1;}
 
+/* ATH紙吹雪オーバーレイ */
+#confettiOverlay{display:none;position:fixed;inset:0;z-index:999;pointer-events:none;}
+#confettiOverlay.show{display:block;}
+#athBanner{display:none;position:fixed;top:0;left:50%;transform:translateX(-50%);z-index:1000;
+  background:linear-gradient(135deg,#fbbf24,#f59e0b);color:#fff;
+  padding:14px 24px;border-radius:0 0 20px 20px;font-size:15px;font-weight:900;
+  box-shadow:0 4px 20px rgba(251,191,36,0.6);text-align:center;
+  animation:athDrop 0.4s cubic-bezier(0.34,1.56,0.64,1) forwards;}
+#athBanner.show{display:block;}
+@keyframes athDrop{from{transform:translateX(-50%) translateY(-100%);}to{transform:translateX(-50%) translateY(0);}}
+@keyframes confettiFall{
+  0%{transform:translateY(-20px) rotate(0deg);opacity:1;}
+  100%{transform:translateY(100vh) rotate(720deg);opacity:0;}
+}
+.confetti-piece{position:absolute;width:10px;height:10px;top:-20px;animation:confettiFall linear forwards;}
+
 /* データ更新モーダル */
 .modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.4);z-index:100;align-items:center;justify-content:center;padding:16px;}
 .modal-overlay.show{display:flex;}
@@ -130,6 +146,10 @@ select{background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;color:#1e40
     <div id="lockErr"></div>
   </div>
 </div>
+
+<!-- ATH演出 -->
+<div id="confettiOverlay"></div>
+<div id="athBanner">🏆 新記録！ALL-TIME HIGH 更新！ 🎉</div>
 
 <!-- メインアプリ（データ読み込み後に表示） -->
 <div id="app">
@@ -221,7 +241,7 @@ function importFile(input) {
       DATA = parsed;
       saveToSession(DATA);
       msgEl.innerHTML = '<div class="msg ok">✅ 更新しました！</div>';
-      setTimeout(() => { closeModal(); init(); }, 800);
+      setTimeout(() => { closeModal(); checkAndFireATH(); init(); }, 800);
     } catch(err) {
       msgEl.innerHTML = `<div class="msg err">❌ エラー：${err.message}</div>`;
     }
@@ -256,12 +276,63 @@ function logout() {
 function showApp() {
   document.getElementById('lockScreen').style.display = 'none';
   document.getElementById('app').style.display = 'block';
+  _lastKnownATH = null; // 初回ロード時はリセット
   init();
 }
 
 // ===== 起動時チェックは全関数定義後に実行 =====
 // ===== ユーティリティ =====
 const fmt = v => v==null?"—":`¥${Number(v).toLocaleString("ja-JP")}`;
+
+// ===== ATH（過去最高値）計算 =====
+function calcATH() {
+  if (!DATA || !DATA.history || DATA.history.length === 0) return null;
+  return Math.max(...DATA.history.map(d => d.total).filter(v => v != null));
+}
+
+// セッションに前回のATHを記憶し、更新時に演出を発火
+let _lastKnownATH = null;
+function checkAndFireATH() {
+  const ath = calcATH();
+  if (ath == null) return;
+  const latest = DATA.history[DATA.history.length - 1];
+  if (!latest) return;
+  // 初回ロード時は記憶するだけ
+  if (_lastKnownATH === null) { _lastKnownATH = ath; return; }
+  // ATH更新検出
+  if (latest.total != null && latest.total > _lastKnownATH) {
+    _lastKnownATH = ath;
+    fireATHCelebration();
+  }
+}
+function fireATHCelebration() {
+  // バナー表示
+  const banner = document.getElementById('athBanner');
+  banner.classList.add('show');
+  setTimeout(() => banner.classList.remove('show'), 3500);
+  // 紙吹雪
+  const overlay = document.getElementById('confettiOverlay');
+  overlay.innerHTML = '';
+  overlay.classList.add('show');
+  const colors = ['#fbbf24','#f59e0b','#34d399','#60a5fa','#f472b6','#a78bfa','#fb923c'];
+  for (let i = 0; i < 80; i++) {
+    const el = document.createElement('div');
+    el.className = 'confetti-piece';
+    const color = colors[Math.floor(Math.random() * colors.length)];
+    const isCircle = Math.random() > 0.5;
+    el.style.cssText = `
+      left:${Math.random()*100}%;
+      background:${color};
+      border-radius:${isCircle?'50%':'2px'};
+      width:${6+Math.random()*8}px;
+      height:${6+Math.random()*8}px;
+      animation-duration:${1.5+Math.random()*2}s;
+      animation-delay:${Math.random()*0.8}s;
+    `;
+    overlay.appendChild(el);
+  }
+  setTimeout(() => { overlay.classList.remove('show'); overlay.innerHTML = ''; }, 4000);
+}
 const fmtSigned = v => {
   if (v==null) return "—";
   const sign = v >= 0 ? "+" : "-";
@@ -294,7 +365,7 @@ function importData(){
     if(!parsed.history||!parsed.funds)throw new Error('historyとfundsが必要です');
     DATA=parsed; saveToSession(DATA);
     msgEl.innerHTML='<div class="msg ok">✅ 更新しました！</div>';
-    setTimeout(()=>{closeModal();init();},800);
+    setTimeout(()=>{closeModal();checkAndFireATH();init();},800);
   }catch(e){msgEl.innerHTML=`<div class="msg err">❌ エラー：${e.message}</div>`;}
 }
 function exportData(){
@@ -382,10 +453,27 @@ function renderSummary(){
     </div>`;
   }
 
+  // ATH計算
+  const ath = calcATH();
+  const isATH = ath != null && latest.total != null && latest.total >= ath;
+  const athDiff = ath != null && latest.total != null ? ath - latest.total : null;
+  const athDiffPct = ath != null && latest.total != null ? (ath - latest.total) / ath * 100 : null;
+  const athBadgeHtml = isATH
+    ? `<div style="display:inline-flex;align-items:center;gap:4px;background:linear-gradient(135deg,#fef3c7,#fbbf24);border:1px solid #fbbf24;border-radius:20px;padding:2px 10px;margin-top:6px">
+        <span style="font-size:13px">🏆</span><span style="font-size:11px;font-weight:800;color:#92400e">ATH 更新中！</span>
+       </div>`
+    : athDiff != null
+    ? `<div style="font-size:11px;color:#94a3b8;margin-top:5px">
+        🏆 ATHまで <strong style="color:#f59e0b">${fmt(Math.round(athDiff))}</strong>
+        <span style="color:#f59e0b">&nbsp;(${athDiffPct.toFixed(2)}%)</span>
+       </div>`
+    : '';
+
   document.getElementById('summaryCards').innerHTML=`
     <div class="card">
       <div class="card-label">最新評価額（${latest.date}）</div>
       <div style="font-size:17px;font-weight:800;color:#1e3a5f">${fmt(latest.total)}</div>
+      ${athBadgeHtml}
     </div>
     <div class="card" style="background:linear-gradient(135deg,#ecfdf5,#d1fae5);border-color:#6ee7b7">
       <div class="card-label">含み益（${latest.date}）</div>
@@ -1183,6 +1271,13 @@ function renderAnalysis() {
         <div id="customGoalResult" style="margin-top:8px"></div>
       </div>
     </div>
+    <div class="card" style="margin-bottom:12px">
+      <div style="font-size:10px;color:#64748b;font-weight:700;letter-spacing:2px;margin-bottom:10px">📉 ドローダウンチャート（ATHからの下落率）</div>
+      <div id="drawdownSummary" style="margin-bottom:10px"></div>
+      <div style="position:relative;height:200px"><canvas id="drawdownChart"></canvas></div>
+      <div style="font-size:10px;color:#94a3b8;margin-top:6px">※ 各時点での過去最高値（ATH）からの下落率（%）。常に0%以下で表示。</div>
+      <div id="drawdownBargain" style="margin-top:10px"></div>
+    </div>
     <div class="card" style="margin-bottom:12px;background:linear-gradient(135deg,#f0fdf4,#ecfdf5);border-color:#6ee7b7">
       <div style="font-size:10px;color:#065f46;font-weight:700;letter-spacing:2px;margin-bottom:12px">⚡ モメンタム・テクニカル分析（ポートフォリオ全体）</div>
       <div id="momentumPanel"></div>
@@ -1198,7 +1293,7 @@ function renderAnalysis() {
       <div style="position:relative;height:180px"><canvas id="histChart"></canvas></div>
     </div>`;
 
-  renderSimChart(); renderCorrMatrix(); renderHistogram(); renderMilestones(); renderMomentum();
+  renderSimChart(); renderCorrMatrix(); renderHistogram(); renderMilestones(); renderMomentum(); renderDrawdown();
 }
 
 function renderMilestones() {
@@ -1416,6 +1511,173 @@ function renderHistogram() {
       plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>`${c.raw}日`}}},
       scales:{x:{grid:{display:false},ticks:{color:'#94a3b8',font:{size:9},maxTicksLimit:10}},
         y:{grid:{color:'#e2e8f0'},ticks:{color:'#94a3b8',font:{size:9}}}}}});
+}
+
+// ===== ドローダウンチャート =====
+function renderDrawdown() {
+  const h = DATA.history;
+  if (h.length < 3) {
+    document.getElementById('drawdownSummary').innerHTML = '<div style="font-size:12px;color:#94a3b8">データが不足しています（3日以上必要）</div>';
+    return;
+  }
+
+  // ATHと各時点のドローダウン系列を計算
+  let runningATH = h[0].total;
+  const ddSeries = h.map(d => {
+    if (d.total == null) return null;
+    if (d.total > runningATH) runningATH = d.total;
+    const dd = runningATH > 0 ? ((d.total - runningATH) / runningATH * 100) : 0;
+    return parseFloat(dd.toFixed(2));
+  });
+
+  const latest = h[h.length - 1];
+  const currentDD = ddSeries[ddSeries.length - 1];
+  const maxDD = Math.min(...ddSeries.filter(v => v != null)); // 最大下落（最も負の値）
+  const maxDDDate = h[ddSeries.indexOf(maxDD)]?.date;
+
+  // 現在DDのレベル判定
+  let ddLevel, ddColor, ddBg, ddIcon;
+  const ddAbs = Math.abs(currentDD);
+  if (ddAbs < 1)       { ddLevel="ATH圏内（ほぼ最高値）"; ddColor="#059669"; ddBg="#ecfdf5"; ddIcon="🏆"; }
+  else if (ddAbs < 5)  { ddLevel="軽微な調整"; ddColor="#0d9488"; ddBg="#f0fdfa"; ddIcon="📈"; }
+  else if (ddAbs < 10) { ddLevel="通常の調整局面"; ddColor="#0369a1"; ddBg="#eff6ff"; ddIcon="📊"; }
+  else if (ddAbs < 20) { ddLevel="調整深め（買い増し検討）"; ddColor="#d97706"; ddBg="#fffbeb"; ddIcon="🟡"; }
+  else if (ddAbs < 30) { ddLevel="ベア相場入り"; ddColor="#ea580c"; ddBg="#fff7ed"; ddIcon="🟠"; }
+  else                 { ddLevel="暴落局面！バーゲンセール！"; ddColor="#dc2626"; ddBg="#fff1f2"; ddIcon="🔴"; }
+
+  // サマリー表示
+  document.getElementById('drawdownSummary').innerHTML = `
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px">
+      <div style="background:${ddBg};border-radius:10px;padding:10px;border:1px solid ${ddColor}30">
+        <div style="font-size:10px;color:#64748b;margin-bottom:3px">現在のDD</div>
+        <div style="font-size:19px;font-weight:900;color:${ddColor}">${currentDD.toFixed(2)}%</div>
+        <div style="font-size:10px;font-weight:700;color:${ddColor};margin-top:2px">${ddIcon} ${ddLevel}</div>
+      </div>
+      <div style="background:#f8fafc;border-radius:10px;padding:10px;border:1px solid #e2e8f0">
+        <div style="font-size:10px;color:#64748b;margin-bottom:3px">最大DD（史上）</div>
+        <div style="font-size:19px;font-weight:900;color:#e11d48">${maxDD.toFixed(2)}%</div>
+        <div style="font-size:10px;color:#94a3b8;margin-top:2px">${maxDDDate || "—"}</div>
+      </div>
+      <div style="background:#f8fafc;border-radius:10px;padding:10px;border:1px solid #e2e8f0">
+        <div style="font-size:10px;color:#64748b;margin-bottom:3px">ATH</div>
+        <div style="font-size:14px;font-weight:900;color:#f59e0b">${fmt(Math.round(calcATH()))}</div>
+        <div style="font-size:10px;color:#94a3b8;margin-top:2px">過去最高評価額</div>
+      </div>
+    </div>`;
+
+  // バーゲンセール判定
+  const bargainThreshold = -10;
+  const isBargain = currentDD <= bargainThreshold;
+  const historicalBargains = h.filter((d, i) => ddSeries[i] != null && ddSeries[i] <= bargainThreshold);
+  const bargainEl = document.getElementById('drawdownBargain');
+  if (isBargain) {
+    bargainEl.innerHTML = `
+      <div style="background:linear-gradient(135deg,#fff7ed,#ffedd5);border:1.5px solid #fb923c;border-radius:10px;padding:10px 12px">
+        <div style="font-size:11px;font-weight:800;color:#c2410c;margin-bottom:4px">🛒 バーゲンセール中！買い増しチャンス</div>
+        <div style="font-size:11px;color:#9a3412">ATHから <strong>${ddAbs.toFixed(2)}%</strong> 下落中。過去の回復実績からすると仕込み場の可能性があります。</div>
+      </div>`;
+  } else if (historicalBargains.length > 0) {
+    bargainEl.innerHTML = `
+      <div style="background:#f8fafc;border-radius:8px;padding:8px 10px;border:1px solid #e2e8f0">
+        <div style="font-size:10px;color:#64748b;font-weight:700">過去のバーゲンセール（DD -10%以下）</div>
+        <div style="font-size:11px;color:#94a3b8;margin-top:3px">計 ${historicalBargains.length} 日間。直近: ${historicalBargains[historicalBargains.length-1].date}</div>
+      </div>`;
+  } else {
+    bargainEl.innerHTML = '';
+  }
+
+  // チャート描画
+  destroyChart('drawdown');
+  const ctx = document.getElementById('drawdownChart')?.getContext('2d');
+  if (!ctx) return;
+  const r = dotSize(h.length);
+
+  // 色付き背景のためzone annotations風にデータセットを分ける
+  charts['drawdown'] = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: h.map(d => d.date),
+      datasets: [
+        {
+          label: 'ドローダウン',
+          data: ddSeries,
+          borderColor: '#e11d48',
+          backgroundColor: (context) => {
+            const chart = context.chart;
+            const {ctx: c, chartArea} = chart;
+            if (!chartArea) return 'rgba(225,29,72,0.15)';
+            const gradient = c.createLinearGradient(0, chartArea.top, 0, chartArea.bottom);
+            gradient.addColorStop(0, 'rgba(225,29,72,0.02)');
+            gradient.addColorStop(1, 'rgba(225,29,72,0.25)');
+            return gradient;
+          },
+          borderWidth: 2,
+          pointRadius: r,
+          pointHoverRadius: r + 2,
+          pointBackgroundColor: '#e11d48',
+          tension: 0.3,
+          fill: true,
+          spanGaps: true,
+        },
+        // -10%ライン（バーゲンセール閾値）
+        {
+          label: 'バーゲン閾値(-10%)',
+          data: h.map(() => -10),
+          borderColor: '#f59e0b',
+          backgroundColor: 'transparent',
+          borderWidth: 1.5,
+          borderDash: [6, 4],
+          pointRadius: 0,
+          tension: 0,
+          fill: false,
+        },
+        // 0ライン
+        {
+          label: 'ATH(0%)',
+          data: h.map(() => 0),
+          borderColor: '#10b981',
+          backgroundColor: 'transparent',
+          borderWidth: 1,
+          borderDash: [3, 3],
+          pointRadius: 0,
+          tension: 0,
+          fill: false,
+        }
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: {
+          display: true,
+          labels: { color: '#64748b', font: { size: 10 }, boxWidth: 16, padding: 10 }
+        },
+        tooltip: {
+          callbacks: {
+            label: c => c.datasetIndex === 0
+              ? `DD: ${c.raw?.toFixed(2)}%`
+              : c.dataset.label
+          }
+        }
+      },
+      scales: {
+        x: {
+          grid: { color: '#f1f5f9' },
+          ticks: { color: '#94a3b8', font: { size: 9 }, maxTicksLimit: 10 }
+        },
+        y: {
+          max: 2,
+          grid: { color: '#f1f5f9' },
+          ticks: {
+            color: '#94a3b8',
+            font: { size: 9 },
+            callback: v => `${v}%`
+          }
+        }
+      }
+    }
+  });
 }
 
 // ── 機能2: モメンタム・テクニカル分析 ──
