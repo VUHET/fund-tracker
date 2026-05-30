@@ -191,6 +191,37 @@ select{background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;color:#1e40
 .msg{font-size:12px;margin-top:6px;padding:6px 10px;border-radius:8px;}
 .msg.ok{background:#ecfdf5;color:#0d9488;}
 .msg.err{background:#fff1f2;color:#e11d48;}
+
+/* ── ステルスモード ── */
+.app-label { cursor: pointer; user-select: none; transition: opacity 0.2s; }
+.app-label:active { opacity: 0.6; }
+
+#stealthBadge {
+  display: none;
+  position: fixed; top: 12px; left: 50%; transform: translateX(-50%);
+  z-index: 200; padding: 5px 14px; border-radius: 20px;
+  font-size: 11px; font-weight: 800; letter-spacing: 1px;
+  background: rgba(30,58,95,0.85); color: #93c5fd;
+  box-shadow: 0 2px 12px rgba(0,0,0,0.25);
+  animation: stealthFadeIn 0.3s ease forwards;
+  pointer-events: none; backdrop-filter: blur(4px);
+}
+#stealthBadge.show { display: block; }
+@keyframes stealthFadeIn {
+  from { opacity: 0; transform: translateX(-50%) translateY(-8px); }
+  to   { opacity: 1; transform: translateX(-50%) translateY(0); }
+}
+
+/* マスク対象：.masked クラスが付いた要素を blur+テキスト置換で隠す */
+body.stealth-mode .money-val {
+  filter: blur(6px);
+  transition: filter 0.25s ease;
+  cursor: pointer;
+}
+body:not(.stealth-mode) .money-val {
+  filter: none;
+  transition: filter 0.25s ease;
+}
 </style>
 </head>
 <body>
@@ -240,8 +271,11 @@ select{background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;color:#1e40
     </div>
   </div>
 
+<!-- ステルスモードバッジ -->
+<div id="stealthBadge">👁 ステルスモード ON</div>
+
   <div class="header">
-    <div class="app-label">FUND TRACKER</div>
+    <div class="app-label" onclick="toggleStealth()" title="タップでステルスモード切替">FUND TRACKER</div>
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;gap:8px">
       <h1 style="margin-bottom:0;flex:1">投資信託ポートフォリオ</h1>
       <div style="display:flex;gap:6px;flex-shrink:0">
@@ -335,7 +369,7 @@ function showApp() {
 
 // ===== 起動時チェックは全関数定義後に実行 =====
 // ===== ユーティリティ =====
-const fmt = v => v==null?"—":`¥${Number(v).toLocaleString("ja-JP")}`;
+const fmt = v => v==null?"—":`<span class="money-val">¥${Number(v).toLocaleString("ja-JP")}</span>`;
 
 // ===== ATH（過去最高値）計算 =====
 function calcATH() {
@@ -408,12 +442,53 @@ function calcStreak() {
 const fmtSigned = v => {
   if (v==null) return "—";
   const sign = v >= 0 ? "+" : "-";
-  return `${sign}¥${Math.abs(Number(v)).toLocaleString("ja-JP")}`;
+  return `<span class="money-val">${sign}¥${Math.abs(Number(v)).toLocaleString("ja-JP")}</span>`;
 };
 const fmtPct = v => v==null?"—":`${v>=0?"+":""}${Number(v).toFixed(2)}%`;
 const col = v => v==null?"#94a3b8":v>=0?"#0d9488":"#e11d48";
 const getMonth = d => d.split("/")[0]+"月";
 const parseDate = d => { const [m,day]=d.split("/"); return new Date(2026,parseInt(m)-1,parseInt(day)); };
+
+// ===== グローバル 万単位フォーマット（ステルスモード対応） =====
+const fmtC = v => {
+  if(v==null) return "—";
+  const n = Number(v);
+  if(Math.abs(n)>=1e8) return `<span class="money-val">¥${(n/1e8).toFixed(1)}億</span>`;
+  if(Math.abs(n)>=1e4) return `<span class="money-val">¥${Math.round(n/1e4).toLocaleString("ja-JP")}万</span>`;
+  return `<span class="money-val">¥${n.toLocaleString("ja-JP")}</span>`;
+};
+const fmtCS = v => {
+  if(v==null) return "—";
+  const n = Number(v);
+  const sign = n>=0?"+":"-";
+  const abs = Math.abs(n);
+  if(abs>=1e8) return `<span class="money-val">${sign}¥${(abs/1e8).toFixed(1)}億</span>`;
+  if(abs>=1e4) return `<span class="money-val">${sign}¥${Math.round(abs/1e4).toLocaleString("ja-JP")}万</span>`;
+  return `<span class="money-val">${sign}¥${abs.toLocaleString("ja-JP")}</span>`;
+};
+// プレーンテキスト版（Chart.js tooltip 等で使用）
+const fmtRaw  = v => v==null?"—":`¥${Number(v).toLocaleString("ja-JP")}`;
+const fmtCRaw = v => {
+  if(v==null) return "—";
+  const n = Number(v);
+  if(Math.abs(n)>=1e8) return `¥${(n/1e8).toFixed(1)}億`;
+  if(Math.abs(n)>=1e4) return `¥${Math.round(n/1e4).toLocaleString("ja-JP")}万`;
+  return `¥${n.toLocaleString("ja-JP")}`;
+};
+
+// ===== ステルスモード =====
+let _stealthMode = false;
+function toggleStealth() {
+  _stealthMode = !_stealthMode;
+  document.body.classList.toggle('stealth-mode', _stealthMode);
+  const badge = document.getElementById('stealthBadge');
+  badge.textContent = _stealthMode ? '🙈 ステルスモード ON' : '👁 ステルスモード OFF';
+  badge.classList.add('show');
+  clearTimeout(badge._hideTimer);
+  badge._hideTimer = setTimeout(() => badge.classList.remove('show'), 1800);
+  // Canvas グラフの縦軸ラベルを再描画（CSSblurが効かないため）
+  if (DATA) { Object.keys(charts).forEach(id => { if(charts[id]) charts[id].update(); }); }
+}
 
 let mainTab="total", monthTab="", totalMonthTab="all", fundsView="total", metric="total", monthSortOrder="none", dayChangeMode="pct", returnMethod="cagr", rangeStart="", rangeEnd="", charts={}, simMonthly=30000, simYears=20, simRate=null, showSMA=true;
 function getMonths(){return[...new Set(DATA.history.map(d=>getMonth(d.date)))];}
@@ -772,23 +847,6 @@ function renderSummary(){
             const ec = ml&&pl ? ml.total-pl.total : null;
             const pc = ml&&pl&&ml.pnl!=null&&pl.pnl!=null ? ml.pnl-pl.pnl : null;
             const isL = mi===ms.length-1;
-            // compact formatter: ¥1,234万 instead of full number
-            const fmtC = v => {
-              if(v==null) return "—";
-              const n = Number(v);
-              if(Math.abs(n)>=1e8) return `¥${(n/1e8).toFixed(1)}億`;
-              if(Math.abs(n)>=1e4) return `¥${Math.round(n/1e4).toLocaleString("ja-JP")}万`;
-              return `¥${n.toLocaleString("ja-JP")}`;
-            };
-            const fmtCS = v => {
-              if(v==null) return "—";
-              const n = Number(v);
-              const sign = n>=0?"+":"-";
-              const abs = Math.abs(n);
-              if(abs>=1e8) return `${sign}¥${(abs/1e8).toFixed(1)}億`;
-              if(abs>=1e4) return `${sign}¥${Math.round(abs/1e4).toLocaleString("ja-JP")}万`;
-              return `${sign}¥${abs.toLocaleString("ja-JP")}`;
-            };
             return `<tr style="border-bottom:1px solid #eff6ff;background:${isL?"rgba(59,130,246,0.04)":""}">
               <td style="padding:6px 4px;font-weight:${isL?800:600};color:${isL?"#1e3a5f":"#475569"};font-size:11px">${m}${isL?"✦":""}</td>
               <td style="text-align:right;padding:6px 2px;font-weight:600;color:#1e293b;font-size:11px">${fmtC(ml?.total)}</td>
@@ -835,7 +893,7 @@ function renderSummary(){
       },
       options:{responsive:true, maintainAspectRatio:false,
         plugins:{legend:{display:false},
-          tooltip:{callbacks:{label:c=>`${c.label}：${fmt(c.raw)}（${(c.raw/evals.reduce((a,b)=>a+b,0)*100).toFixed(1)}%）`}}
+          tooltip:{callbacks:{label:c=>`${c.label}：${fmtRaw(c.raw)}（${(c.raw/evals.reduce((a,b)=>a+b,0)*100).toFixed(1)}%）`}}
         }
       }
     });
@@ -889,22 +947,6 @@ function renderTotal(){
     const alertBg = isAlert ? (isUp ? "rgba(16,185,129,0.08)" : "rgba(244,63,94,0.08)") : "transparent";
     const alertBorder = isAlert ? (isUp ? "2px solid rgba(16,185,129,0.3)" : "2px solid rgba(244,63,94,0.3)") : "none";
     const alertIcon = isAlert ? (isUp ? "🚀" : "💥") : "　";
-    const fmtC = v => {
-      if(v==null) return "—";
-      const n = Number(v);
-      if(Math.abs(n)>=1e8) return `¥${(n/1e8).toFixed(1)}億`;
-      if(Math.abs(n)>=1e4) return `¥${Math.round(n/1e4).toLocaleString("ja-JP")}万`;
-      return `¥${n.toLocaleString("ja-JP")}`;
-    };
-    const fmtCS = v => {
-      if(v==null) return "—";
-      const n = Number(v);
-      const sign = n>=0?"+":"-";
-      const abs = Math.abs(n);
-      if(abs>=1e8) return `${sign}¥${(abs/1e8).toFixed(1)}億`;
-      if(abs>=1e4) return `${sign}¥${Math.round(abs/1e4).toLocaleString("ja-JP")}万`;
-      return `${sign}¥${abs.toLocaleString("ja-JP")}`;
-    };
     return `<tr style="border-bottom:1px solid #eff6ff;background:${alertBg};outline:${alertBorder}">
       <td style="color:#64748b;padding:6px 2px;font-size:12px">${alertIcon}</td>
       <td style="color:#64748b;padding:6px 4px;font-size:11px">${d.date}</td>
@@ -1042,12 +1084,12 @@ function buildMainChart(){
     options: { responsive:true, maintainAspectRatio:false,
       plugins: {
         legend: { display: (showCost || (showCost && showSMA)), labels: { color:'#64748b', font:{size:11}, boxWidth:20, padding:12, filter: item => ['投資元本','30日MA','90日MA'].includes(item.text) ? false : true }},
-        tooltip: { callbacks: { label: c => `${c.dataset.label}：${isPct?fmtPct(c.raw):fmt(c.raw)}` }}
+        tooltip: { callbacks: { label: c => `${c.dataset.label}：${isPct?fmtPct(c.raw):fmtRaw(c.raw)}` }}
       },
       scales: {
         x: { grid:{color:'#bfdbfe'}, ticks:{color:'#94a3b8',font:{size:10},maxTicksLimit:10} },
         y: { grid:{color:'#bfdbfe'}, ticks:{color:'#94a3b8',font:{size:10},
-          callback: v => isPct ? `${v}%` : `¥${(v/1e6).toFixed(1)}M`}}
+          callback: v => isPct ? `${v}%` : (_stealthMode ? '¥ ****' : `¥${(v/1e6).toFixed(1)}M`)}}
       }
     }
   });
@@ -1102,9 +1144,9 @@ function buildMonthChart(mData){
     data:{labels:mData.map(d=>d.date),datasets:[{data:mData.map(d=>d.total),borderColor:'#3b82f6',
       backgroundColor:'rgba(59,130,246,0.08)',borderWidth:2,pointRadius:r,pointHoverRadius:r+2,pointBackgroundColor:'#3b82f6',tension:0.3,fill:true}]},
     options:{responsive:true,maintainAspectRatio:false,
-      plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>fmt(c.raw)}}},
+      plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>fmtRaw(c.raw)}}},
       scales:{x:{grid:{color:'#bfdbfe'},ticks:{color:'#94a3b8',font:{size:10},maxTicksLimit:10}},
-        y:{grid:{color:'#bfdbfe'},ticks:{color:'#94a3b8',font:{size:10},callback:v=>`¥${(v/1e6).toFixed(2)}M`}}}}});
+        y:{grid:{color:'#bfdbfe'},ticks:{color:'#94a3b8',font:{size:10},callback:v=>_stealthMode?'¥ ****':`¥${(v/1e6).toFixed(2)}M`}}}}});
 }
 function buildMFundsChart(mFunds){
   const ctx=document.getElementById('mFundsChart')?.getContext('2d'); if(!ctx)return;
@@ -1301,11 +1343,11 @@ function renderFunds(){
         ]},
         options:{responsive:true,maintainAspectRatio:false,
           plugins:{legend:{display:false},
-            tooltip:{callbacks:{label:c=>`${c.dataset.label}：${fmt(c.raw)}`}}},
+            tooltip:{callbacks:{label:c=>`${c.dataset.label}：${fmtRaw(c.raw)}`}}},
           scales:{
             x:{display:false,grid:{display:false}},
             y:{grid:{color:'#f1f5f9'},ticks:{color:'#94a3b8',font:{size:9},maxTicksLimit:4,
-              callback:v=>`¥${(v/1e4).toFixed(1)}万`}}
+              callback:v=>_stealthMode?'¥ ****':`¥${(v/1e4).toFixed(1)}万`}}
           }
         }
       });
@@ -1590,9 +1632,9 @@ function renderSimChart() {
     ]},
     options:{responsive:true,maintainAspectRatio:false,
       plugins:{legend:{display:true,labels:{color:'#64748b',font:{size:10},boxWidth:16,padding:10}},
-        tooltip:{callbacks:{label:c=>`${c.dataset.label}：${fmt(c.raw)}`}}},
+        tooltip:{callbacks:{label:c=>`${c.dataset.label}：${fmtRaw(c.raw)}`}}},
       scales:{x:{grid:{color:'#e2e8f0'},ticks:{color:'#94a3b8',font:{size:9},maxTicksLimit:years+1}},
-        y:{grid:{color:'#e2e8f0'},ticks:{color:'#94a3b8',font:{size:9},callback:v=>`¥${(v/1e6).toFixed(1)}M`}}}}});
+        y:{grid:{color:'#e2e8f0'},ticks:{color:'#94a3b8',font:{size:9},callback:v=>_stealthMode?'¥ ****':`¥${(v/1e6).toFixed(1)}M`}}}}});
 }
 
 function renderCorrMatrix() {
@@ -1951,11 +1993,11 @@ function renderMomentum() {
       ]},
       options:{responsive:true,maintainAspectRatio:false,
         plugins:{legend:{display:false},
-          tooltip:{callbacks:{label:c=>`${c.dataset.label}：${fmt(Math.round(c.raw||0))}`}}},
+          tooltip:{callbacks:{label:c=>`${c.dataset.label}：${fmtRaw(Math.round(c.raw||0))}`}}},
         scales:{
           x:{display:false,grid:{display:false}},
           y:{grid:{color:'#f1f5f9'},ticks:{color:'#94a3b8',font:{size:9},maxTicksLimit:4,
-            callback:v=>`¥${(v/1e6).toFixed(1)}M`}}
+            callback:v=>_stealthMode?'¥ ****':`¥${(v/1e6).toFixed(1)}M`}}
         }
       }
     });
