@@ -40,7 +40,56 @@ if('serviceWorker' in navigator){
 <style>
 *{box-sizing:border-box;margin:0;padding:0;}
 html,body{max-width:100%;overflow-x:hidden;}
-body{background:#f0f7ff;color:#1e293b;font-family:'Helvetica Neue',sans-serif;padding-bottom:80px;font-size:14px;}
+body{background:#f0f7ff;color:#1e293b;font-family:'Helvetica Neue',sans-serif;padding-bottom:80px;font-size:14px;transition:background 0.8s ease,color 0.6s ease;}
+
+/* ── 動的テーマ変数 ── */
+:root {
+  --theme-accent: #3b82f6;
+  --theme-accent2: #60a5fa;
+  --theme-header-from: #dbeafe;
+  --theme-header-to: #f0f7ff;
+  --theme-bg: #f0f7ff;
+  --theme-border: #bfdbfe;
+  --theme-label: #3b82f6;
+  --theme-glow: rgba(59,130,246,0.3);
+}
+body { background: var(--theme-bg); transition: background 0.8s ease; }
+.header { background: linear-gradient(180deg, var(--theme-header-from), var(--theme-header-to)) !important; transition: background 0.8s ease; }
+.update-btn { background: var(--theme-accent) !important; box-shadow: 0 2px 6px var(--theme-glow) !important; }
+.tab.active { background: var(--theme-accent) !important; }
+.mbtn.active { background: var(--theme-accent) !important; }
+.lock-btn { background: var(--theme-accent) !important; }
+.btn-primary { background: var(--theme-accent) !important; }
+.app-label { color: var(--theme-label) !important; }
+.update-btn { transition: background 0.8s ease, box-shadow 0.8s ease; }
+
+/* ── テーマ遷移アニメーション ── */
+@keyframes themeFlash {
+  0%{opacity:0;} 40%{opacity:0.15;} 100%{opacity:0;}
+}
+#themeFlash {
+  display:none;position:fixed;inset:0;z-index:998;pointer-events:none;
+  animation: themeFlash 0.9s ease forwards;
+}
+#themeFlash.show { display:block; }
+
+/* ── 幾何学テクスチャオーバーレイ ── */
+#geoTexture {
+  display:none;position:fixed;inset:0;z-index:0;pointer-events:none;opacity:0;
+  transition:opacity 1.2s ease;
+}
+#geoTexture.show { display:block; opacity:1; }
+
+/* ── テーマバッジ（右下） ── */
+#themeBadge {
+  display:none;position:fixed;bottom:16px;right:16px;z-index:50;
+  padding:6px 12px;border-radius:20px;font-size:11px;font-weight:800;
+  box-shadow:0 2px 12px rgba(0,0,0,0.15);
+  animation:badgeIn 0.5s cubic-bezier(0.34,1.56,0.64,1) forwards;
+  pointer-events:none;
+}
+@keyframes badgeIn{from{transform:translateY(20px);opacity:0;}to{transform:translateY(0);opacity:1;}}
+
 .tbl-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;width:100%;}
 .tbl-wrap table{min-width:420px;}
 .sim-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;}
@@ -150,6 +199,11 @@ select{background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;color:#1e40
 <!-- ATH演出 -->
 <div id="confettiOverlay"></div>
 <div id="athBanner">🏆 新記録！ALL-TIME HIGH 更新！ 🎉</div>
+
+<!-- 動的テーマ演出 -->
+<div id="themeFlash"></div>
+<canvas id="geoTexture"></canvas>
+<div id="themeBadge"></div>
 
 <!-- メインアプリ（データ読み込み後に表示） -->
 <div id="app">
@@ -277,6 +331,7 @@ function showApp() {
   document.getElementById('lockScreen').style.display = 'none';
   document.getElementById('app').style.display = 'block';
   _lastKnownATH = null; // 初回ロード時はリセット
+  _lastThemeKey = null; // テーマもリセット
   init();
 }
 
@@ -343,7 +398,7 @@ const col = v => v==null?"#94a3b8":v>=0?"#0d9488":"#e11d48";
 const getMonth = d => d.split("/")[0]+"月";
 const parseDate = d => { const [m,day]=d.split("/"); return new Date(2026,parseInt(m)-1,parseInt(day)); };
 
-let mainTab="total", monthTab="", totalMonthTab="all", fundsView="total", metric="total", monthSortOrder="none", dayChangeMode="pct", returnMethod="cagr", rangeStart="", rangeEnd="", charts={}, simMonthly=30000, simYears=20, simRate=null;
+let mainTab="total", monthTab="", totalMonthTab="all", fundsView="total", metric="total", monthSortOrder="none", dayChangeMode="pct", returnMethod="cagr", rangeStart="", rangeEnd="", charts={}, simMonthly=30000, simYears=20, simRate=null, showSMA=true;
 function getMonths(){return[...new Set(DATA.history.map(d=>getMonth(d.date)))];}
 
 function init() {
@@ -802,12 +857,22 @@ function renderTotal(){
 
   document.getElementById('tabContent').innerHTML=`
     <div class="card" style="border-radius:16px">
-      <div class="metric-btns" style="margin-bottom:8px">
-        <button class="mbtn${metric==="total"?" active":""}" onclick="switchMetric('total')">評価額</button>
-        <button class="mbtn${metric==="pnl"?" active":""}" onclick="switchMetric('pnl')">含み益</button>
-        <button class="mbtn${metric==="pnlPct"?" active":""}" onclick="switchMetric('pnlPct')">損益率</button>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;gap:6px;flex-wrap:wrap">
+        <div class="metric-btns" style="margin-bottom:0">
+          <button class="mbtn${metric==="total"?" active":""}" onclick="switchMetric('total')">評価額</button>
+          <button class="mbtn${metric==="pnl"?" active":""}" onclick="switchMetric('pnl')">含み益</button>
+          <button class="mbtn${metric==="pnlPct"?" active":""}" onclick="switchMetric('pnlPct')">損益率</button>
+        </div>
+        ${metric==="total"?`<button class="mbtn${showSMA?" active":""}" onclick="toggleSMA()" style="font-size:10px;padding:4px 10px;display:flex;align-items:center;gap:3px"><span style="display:inline-block;width:10px;height:2px;background:currentColor;border-radius:2px;margin-right:2px"></span>巡航速度SMA</button>`:""}
       </div>
       <div class="chart-wrap"><canvas id="mainChart"></canvas></div>
+      ${metric==="total"&&showSMA?`<div style="display:flex;gap:12px;flex-wrap:wrap;margin-top:6px;margin-bottom:2px">
+        <div style="display:flex;align-items:center;gap:4px;font-size:10px;color:#64748b"><div style="width:12px;height:2px;background:#3b82f6;border-radius:2px"></div>評価額</div>
+        <div style="display:flex;align-items:center;gap:4px;font-size:10px;color:#f97316"><div style="width:12px;height:2px;background:#f97316;border-radius:2px"></div>30日MA</div>
+        <div style="display:flex;align-items:center;gap:4px;font-size:10px;color:#8b5cf6"><div style="width:16px;height:2px;background:#8b5cf6;border-radius:2px;border-top:1px dashed #8b5cf6"></div>90日MA</div>
+        <div style="font-size:10px;color:#94a3b8;margin-left:4px">▲巡航速度（ノイズ除去）</div>
+      </div>`:""}
+
       <div class="tabs" style="margin-top:14px;margin-bottom:0">
         <button class="tab${totalMonthTab==="all"?" active":""}" onclick="switchTotalMonth('all')">全期間</button>
         ${months.map(m=>`<button class="tab${totalMonthTab===m?" active":""}" onclick="switchTotalMonth('${m}')">${m}</button>`).join("")}
@@ -841,6 +906,7 @@ function renderTotal(){
   buildMainChart();
 }
 function switchMetric(m){metric=m;destroyChart('main');renderTotal();}
+function toggleSMA(){showSMA=!showSMA;destroyChart('main');renderTotal();}
 function switchTotalMonth(m){totalMonthTab=m;destroyChart('main');renderTotal();}
 function switchDayChangeMode(m){dayChangeMode=m;renderTotal();}
 
@@ -880,11 +946,42 @@ function buildMainChart(){
     });
   }
 
+  // SMA（巡航速度）追加：評価額表示のときのみ
+  if (showCost && showSMA) {
+    const globalH = DATA.history;
+    const calcSMA = (n) => h.map((pt) => {
+      const gIdx = globalH.findIndex(d => d.date === pt.date);
+      const slice = globalH.slice(Math.max(0, gIdx - n + 1), gIdx + 1).map(d => d.total).filter(v => v != null);
+      return slice.length >= Math.min(n, 5) ? slice.reduce((a,b)=>a+b,0)/slice.length : null;
+    });
+    datasets.push({
+      label: "30日MA",
+      data: calcSMA(30),
+      borderColor: '#f97316',
+      backgroundColor: 'transparent',
+      borderWidth: 2,
+      pointRadius: 0,
+      tension: 0.4, fill: false, order: 3,
+      spanGaps: true,
+    });
+    datasets.push({
+      label: "90日MA",
+      data: calcSMA(90),
+      borderColor: '#8b5cf6',
+      backgroundColor: 'transparent',
+      borderWidth: 2,
+      borderDash: [6, 3],
+      pointRadius: 0,
+      tension: 0.4, fill: false, order: 4,
+      spanGaps: true,
+    });
+  }
+
   charts['main'] = new Chart(ctx, {type:'line',
     data: { labels: h.map(d=>d.date), datasets },
     options: { responsive:true, maintainAspectRatio:false,
       plugins: {
-        legend: { display: showCost, labels: { color:'#64748b', font:{size:11}, boxWidth:20, padding:12 }},
+        legend: { display: (showCost || (showCost && showSMA)), labels: { color:'#64748b', font:{size:11}, boxWidth:20, padding:12, filter: item => ['投資元本','30日MA','90日MA'].includes(item.text) ? false : true }},
         tooltip: { callbacks: { label: c => `${c.dataset.label}：${isPct?fmtPct(c.raw):fmt(c.raw)}` }}
       },
       scales: {
@@ -1807,7 +1904,190 @@ function renderMomentum() {
 
 
 
-function render(){renderSummary();renderTabs();renderContent();}
+// ===== 動的テーマエンジン =====
+let _lastThemeKey = null;
+
+function applyDynamicTheme() {
+  if (!DATA || !DATA.history || DATA.history.length < 2) return;
+  const h = DATA.history;
+  const latest = h[h.length - 1];
+  const ath = calcATH();
+  const isATH = ath != null && latest.total >= ath;
+
+  // ドローダウン率（現在値 vs ATH）
+  const ddPct = ath ? (latest.total - ath) / ath * 100 : 0;
+  const isDrawdown = ddPct < -5;
+  const isSevereDrawdown = ddPct < -15;
+
+  // 資産クラス閾値
+  const TIERS = [
+    { value: 100000000, key: "oku",    emoji: "👑", label: "1億円クラス到達",   accent: "#d97706", accent2: "#fbbf24", from: "#fffbeb", to: "#fef3c7", bg: "#fffbeb", border: "#fbbf24", glow: "rgba(217,119,6,0.4)", geo: true },
+    { value:  50000000, key: "j_rich", emoji: "💎", label: "準富裕層クラス",     accent: "#0369a1", accent2: "#38bdf8", from: "#e0f2fe", to: "#f0f9ff", bg: "#f0f9ff", border: "#7dd3fc", glow: "rgba(3,105,161,0.3)", geo: true },
+    { value:  30000000, key: "upper",  emoji: "🚀", label: "アッパーマスクラス", accent: "#7c3aed", accent2: "#a78bfa", from: "#f5f3ff", to: "#ede9fe", bg: "#f5f3ff", border: "#c4b5fd", glow: "rgba(124,58,237,0.3)", geo: true },
+    { value:  10000000, key: "1000",   emoji: "🎯", label: "1000万円クラス",     accent: "#0d9488", accent2: "#34d399", from: "#ecfdf5", to: "#f0fdf4", bg: "#f0fdf4", border: "#6ee7b7", glow: "rgba(13,148,136,0.3)", geo: false },
+    { value:   5000000, key: "500",    emoji: "🌱", label: "500万円クラス",      accent: "#2563eb", accent2: "#60a5fa", from: "#dbeafe", to: "#eff6ff", bg: "#f0f7ff", border: "#bfdbfe", glow: "rgba(37,99,235,0.3)", geo: false },
+  ];
+
+  let theme;
+  if (isATH) {
+    theme = {
+      key: "ath", emoji: "🏆", label: "ATH更新中！",
+      accent: "#d97706", accent2: "#fbbf24",
+      from: "linear-gradient(135deg,#fef9c3,#fde68a)", to: "#fffbeb",
+      bg: "#fffbeb", border: "#fbbf24", glow: "rgba(251,191,36,0.5)",
+      geo: false, flash: "#fbbf24"
+    };
+  } else if (isSevereDrawdown) {
+    theme = {
+      key: "severe_dd", emoji: "🛡️", label: `深刻なドローダウン ${ddPct.toFixed(1)}%`,
+      accent: "#1e3a5f", accent2: "#334155",
+      from: "#1e293b", to: "#0f172a",
+      bg: "#0f172a", border: "#334155", glow: "rgba(30,58,95,0.6)",
+      geo: false, flash: "#1e293b", dark: true
+    };
+  } else if (isDrawdown) {
+    theme = {
+      key: "drawdown", emoji: "🌊", label: `ドローダウン中 ${ddPct.toFixed(1)}%`,
+      accent: "#1d4ed8", accent2: "#3b82f6",
+      from: "#1e3a5f", to: "#1e40af",
+      bg: "#f0f4ff", border: "#93c5fd", glow: "rgba(29,78,216,0.3)",
+      geo: false, flash: "#3b82f6"
+    };
+  } else {
+    // 資産クラスに応じたテーマ
+    theme = TIERS.find(t => latest.total >= t.value) || {
+      key: "default", emoji: "📊", label: "通常",
+      accent: "#3b82f6", accent2: "#60a5fa",
+      from: "#dbeafe", to: "#f0f7ff",
+      bg: "#f0f7ff", border: "#bfdbfe", glow: "rgba(59,130,246,0.3)",
+      geo: false
+    };
+  }
+
+  const isDark = theme.dark || false;
+  const isNewTheme = theme.key !== _lastThemeKey;
+  _lastThemeKey = theme.key;
+
+  // ボディ背景更新
+  document.body.style.background = theme.bg;
+  if (isDark) {
+    document.body.style.color = '#e2e8f0';
+  } else {
+    document.body.style.color = '#1e293b';
+  }
+
+  // CSS変数を適用
+  const root = document.documentElement;
+  root.style.setProperty('--theme-accent', theme.accent);
+  root.style.setProperty('--theme-accent2', theme.accent2);
+  root.style.setProperty('--theme-header-from', theme.from.includes('gradient') ? '#1e3a5f' : theme.from);
+  root.style.setProperty('--theme-header-to', theme.to);
+  root.style.setProperty('--theme-bg', theme.bg);
+  root.style.setProperty('--theme-border', theme.border);
+  root.style.setProperty('--theme-label', isDark ? '#93c5fd' : theme.accent);
+  root.style.setProperty('--theme-glow', theme.glow);
+
+  // ヘッダーグラデーション直接適用
+  const header = document.querySelector('.header');
+  if (header) {
+    if (theme.from.includes('gradient')) {
+      header.style.background = `${theme.from}, linear-gradient(180deg,#1e3a5f,#0f172a)`;
+      header.style.background = 'linear-gradient(180deg,#1e3a5f,#0f172a)';
+    } else {
+      header.style.background = `linear-gradient(180deg,${theme.from},${theme.to})`;
+    }
+    // ダークテーマ時は文字色も変更
+    if (isDark) {
+      header.style.color = '#e2e8f0';
+      const h1 = header.querySelector('h1');
+      if (h1) h1.style.color = '#e2e8f0';
+    } else {
+      header.style.color = '';
+      const h1 = header.querySelector('h1');
+      if (h1) h1.style.color = '#1e3a5f';
+    }
+  }
+
+  // theme-color metaタグ更新（PWAステータスバー）
+  let tcMeta = document.querySelector('meta[name="theme-color"]');
+  if (tcMeta) tcMeta.setAttribute('content', theme.accent);
+
+  // フラッシュ演出（テーマ変化時のみ）
+  if (isNewTheme && theme.flash) {
+    const flash = document.getElementById('themeFlash');
+    flash.style.background = theme.flash;
+    flash.classList.remove('show');
+    void flash.offsetWidth;
+    flash.classList.add('show');
+    setTimeout(() => flash.classList.remove('show'), 900);
+  }
+
+  // 幾何学テクスチャ（資産クラスに応じてアンロック）
+  const geoCanvas = document.getElementById('geoTexture');
+  if (theme.geo && isNewTheme) {
+    geoCanvas.classList.add('show');
+    drawGeoTexture(geoCanvas, theme.accent);
+  } else if (!theme.geo) {
+    geoCanvas.classList.remove('show');
+  }
+
+  // テーマバッジ表示（変化時のみ）
+  if (isNewTheme) {
+    const badge = document.getElementById('themeBadge');
+    badge.style.cssText = `display:block;bottom:16px;right:16px;z-index:50;padding:6px 12px;border-radius:20px;font-size:11px;font-weight:800;background:${theme.accent};color:#fff;box-shadow:0 2px 12px ${theme.glow};animation:badgeIn 0.5s cubic-bezier(0.34,1.56,0.64,1) forwards;position:fixed;pointer-events:none;`;
+    badge.textContent = `${theme.emoji} ${theme.label}`;
+    clearTimeout(badge._hideTimer);
+    badge._hideTimer = setTimeout(() => { badge.style.display = 'none'; }, 3000);
+  }
+}
+
+function drawGeoTexture(canvas, color) {
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  // ヘックスグリッドパターン
+  const size = 40;
+  const h = size * Math.sqrt(3);
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 0.5;
+  ctx.globalAlpha = 0.08;
+
+  for (let row = -1; row < canvas.height / h + 2; row++) {
+    for (let col = -1; col < canvas.width / (size * 1.5) + 2; col++) {
+      const x = col * size * 1.5;
+      const y = row * h + (col % 2 === 0 ? 0 : h / 2);
+      ctx.beginPath();
+      for (let i = 0; i < 6; i++) {
+        const angle = (Math.PI / 3) * i - Math.PI / 6;
+        const px = x + size * 0.9 * Math.cos(angle);
+        const py = y + size * 0.9 * Math.sin(angle);
+        i === 0 ? ctx.moveTo(px, py) : ctx.lineTo(px, py);
+      }
+      ctx.closePath();
+      ctx.stroke();
+    }
+  }
+
+  // ダイヤ型ポイントアクセント
+  ctx.globalAlpha = 0.06;
+  ctx.fillStyle = color;
+  for (let i = 0; i < 30; i++) {
+    const x = Math.random() * canvas.width;
+    const y = Math.random() * canvas.height;
+    const s = 4 + Math.random() * 8;
+    ctx.beginPath();
+    ctx.moveTo(x, y - s);
+    ctx.lineTo(x + s * 0.6, y);
+    ctx.lineTo(x, y + s);
+    ctx.lineTo(x - s * 0.6, y);
+    ctx.closePath();
+    ctx.fill();
+  }
+}
+
+function render(){renderSummary();renderTabs();renderContent();applyDynamicTheme();}
 
 // ===== 起動時チェック =====
 // セッションにデータがあっても必ずロック画面を表示する
