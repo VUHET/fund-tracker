@@ -491,6 +491,7 @@ function toggleStealth() {
 }
 
 let mainTab="total", monthTab="", totalMonthTab="all", fundsView="total", metric="total", monthSortOrder="none", dayChangeMode="pct", returnMethod="cagr", rangeStart="", rangeEnd="", charts={}, simMonthly=30000, simYears=20, simRate=null, showSMA=true;
+let donutExcluded = new Set(); // ドーナツチャートから除外するファンド(短縮名)
 function getMonths(){return[...new Set(DATA.history.map(d=>getMonth(d.date)))];}
 
 function init() {
@@ -861,46 +862,65 @@ function renderSummary(){
       </table>
     </div>
     <div class="card full">
-      <div style="font-size:10px;color:#64748b;font-weight:700;letter-spacing:2px;margin-bottom:10px">🍩 ポートフォリオ構成比</div>
+      <div style="font-size:10px;color:#64748b;font-weight:700;letter-spacing:2px;margin-bottom:10px">🍩 ポートフォリオ構成比 <span style="font-weight:500;letter-spacing:0;color:#94a3b8">（タップで含む/含まないを切替）</span></div>
       <div style="position:relative;height:200px"><canvas id="donutChart"></canvas></div>
-      <div class="legend" style="margin-top:12px;justify-content:center">
-        ${DATA.funds.map(f=>{
-          const last = f.data.filter(d=>d.pnlPct!=null).slice(-1)[0];
-          const nav = last && f.cost_nav ? f.cost_nav*(1+last.pnlPct/100) : 0;
-          const ev = f.units && nav ? Math.round(f.units*nav/10000) : 0;
-          const pct = ev && latest.total ? (ev/latest.total*100).toFixed(1) : "—";
-          return `<div class="legend-item"><div class="legend-line" style="background:${f.color}"></div>${f.short} ${pct}%</div>`;
-        }).join("")}
-      </div>
+      <div class="legend" id="donutLegend" style="margin-top:12px;justify-content:center"></div>
     </div>`;
 
-  // ドーナッツチャート描画
-  setTimeout(()=>{
-    const ctx = document.getElementById('donutChart')?.getContext('2d');
-    if (!ctx) return;
-    destroyChart('donut');
-    const evals = DATA.funds.map(f=>{
-      const last = f.data.filter(d=>d.pnlPct!=null).slice(-1)[0];
-      const nav = last && f.cost_nav ? f.cost_nav*(1+last.pnlPct/100) : 0;
-      return f.units && nav ? Math.round(f.units*nav/10000) : 0;
-    });
-    charts['donut'] = new Chart(ctx,{
-      type:'doughnut',
-      data:{
-        labels: DATA.funds.map(f=>f.short),
-        datasets:[{data:evals, backgroundColor:DATA.funds.map(f=>f.color),
-          borderColor:'#fff', borderWidth:2}]
-      },
-      options:{responsive:true, maintainAspectRatio:false,
-        plugins:{legend:{display:false},
-          tooltip:{callbacks:{label:c=>`${c.label}：${fmtRaw(c.raw)}（${(c.raw/evals.reduce((a,b)=>a+b,0)*100).toFixed(1)}%）`}}
-        }
-      }
-    });
-  }, 50);
+  renderDonutChart();
 
   // ドラムロール初期化
   updateRangeResult();
+}
+
+// ===== ドーナツチャート（ファンド選択可能） =====
+function renderDonutChart(){
+  const legendEl = document.getElementById('donutLegend');
+  if(!legendEl) return;
+
+  const evalsAll = DATA.funds.map(f=>{
+    const last = f.data.filter(d=>d.pnlPct!=null).slice(-1)[0];
+    const nav = last && f.cost_nav ? f.cost_nav*(1+last.pnlPct/100) : 0;
+    return f.units && nav ? Math.round(f.units*nav/10000) : 0;
+  });
+  const includedTotal = DATA.funds.reduce((sum,f,i)=> donutExcluded.has(f.short) ? sum : sum+evalsAll[i], 0);
+
+  legendEl.innerHTML = DATA.funds.map((f,i)=>{
+    const excluded = donutExcluded.has(f.short);
+    const pct = (!excluded && evalsAll[i] && includedTotal) ? (evalsAll[i]/includedTotal*100).toFixed(1) : "—";
+    return `<div class="legend-item" onclick="toggleDonutFund('${f.short}')" style="cursor:pointer;user-select:none;opacity:${excluded?0.4:1}">
+      <span style="display:inline-flex;align-items:center;justify-content:center;width:13px;height:13px;border-radius:3px;border:1.5px solid ${f.color};background:${excluded?'transparent':f.color};font-size:9px;color:#fff;line-height:1">${excluded?'':'✓'}</span>
+      <div class="legend-line" style="background:${f.color}"></div>${f.short}${excluded?"":` ${pct}%`}
+    </div>`;
+  }).join("");
+
+  const ctx = document.getElementById('donutChart')?.getContext('2d');
+  if (!ctx) return;
+  destroyChart('donut');
+  const labels = [], data = [], colors = [];
+  DATA.funds.forEach((f,i)=>{
+    if(donutExcluded.has(f.short)) return;
+    labels.push(f.short); data.push(evalsAll[i]); colors.push(f.color);
+  });
+  charts['donut'] = new Chart(ctx,{
+    type:'doughnut',
+    data:{ labels, datasets:[{data, backgroundColor:colors, borderColor:'#fff', borderWidth:2}] },
+    options:{responsive:true, maintainAspectRatio:false,
+      plugins:{legend:{display:false},
+        tooltip:{callbacks:{label:c=>`${c.label}：${fmtRaw(c.raw)}（${(c.raw/data.reduce((a,b)=>a+b,0)*100).toFixed(1)}%）`}}
+      }
+    }
+  });
+}
+function toggleDonutFund(short){
+  if(donutExcluded.has(short)){
+    donutExcluded.delete(short);
+  } else {
+    // 全ファンド除外は不可（最低1件は表示）
+    if(DATA.funds.length - donutExcluded.size <= 1) return;
+    donutExcluded.add(short);
+  }
+  renderDonutChart();
 }
 
 // ===== タブ =====
