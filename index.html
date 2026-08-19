@@ -1378,7 +1378,6 @@ function renderFunds(){
         ${isMonth && monthPnl!=null ? `<div><div class="card-label">月間損益</div><div style="font-size:15px;font-weight:700;color:${col(monthPnl)}">${fmtSigned(monthPnl)}</div></div>` : ""}
         ${curPnl!=null ? `<div><div class="card-label">含み益</div><div style="font-size:15px;font-weight:700;color:${col(curPnl)}">${fmtSigned(curPnl)}</div></div>` : ""}
         <div><div class="card-label">基準価額</div><div style="font-size:13px;font-weight:600;color:#64748b">${fmt(lf?.nav)}</div></div>
-        <div><div class="card-label">平均取得単価</div><div style="font-size:13px;font-weight:600;color:#f59e0b">${f.cost_nav?fmt(f.cost_nav):"—"}</div></div>
         <div><div class="card-label">平均取得単価</div><div style="font-size:13px;font-weight:700;color:#f59e0b">${f.cost_nav?fmt(f.cost_nav):"—"}</div></div>
         <div><div class="card-label">最高値比（DD）</div><div style="font-size:13px;font-weight:700;color:${ddColor}">${ddStr}${maxDate?`<span style="font-size:10px;color:#94a3b8;margin-left:4px">最高:${maxDate}</span>`:""}</div></div>
       </div>
