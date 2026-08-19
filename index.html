@@ -490,7 +490,7 @@ function toggleStealth() {
   if (DATA) { Object.keys(charts).forEach(id => { if(charts[id]) charts[id].update(); }); }
 }
 
-let mainTab="total", monthTab="", totalMonthTab="all", fundsView="total", metric="total", monthSortOrder="none", dayChangeMode="pct", returnMethod="cagr", rangeStart="", rangeEnd="", charts={}, simMonthly=30000, simYears=20, simRate=null, showSMA=true;
+let mainTab="total", monthTab="", totalMonthTab="all", fundsView="total", metric="total", monthSortOrder="none", dayChangeMode="pct", returnMethod="cagr", rangeStart="", rangeEnd="", charts={}, simMonthly=30000, simYears=20, simRate=null, showSMA=true, withdrawRate=4;
 let donutExcluded = new Set(); // ドーナツチャートから除外するファンド(短縮名)
 function getMonths(){return[...new Set(DATA.history.map(d=>getMonth(d.date)))];}
 
@@ -793,17 +793,23 @@ function renderSummary(){
       </div>
     </div>
     <div class="card full" style="background:linear-gradient(135deg,#fef3c7,#fde68a);border-color:#fbbf24">
-      <div style="font-size:10px;color:#92400e;font-weight:700;letter-spacing:2px;margin-bottom:8px">💰 4%ルール（FIRE取り崩し試算）</div>
+      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:10px">
+        <div style="font-size:10px;color:#92400e;font-weight:700;letter-spacing:2px">💰 定率取り崩し試算（FIRE）</div>
+        <div style="display:flex;gap:4px;flex-wrap:wrap;align-items:center">
+          ${[2,3,4,5,6,8].map(r=>`<button onclick="switchWithdrawRate(${r})" style="padding:4px 10px;border-radius:16px;border:1.5px solid ${withdrawRate===r?"#d97706":"#fbbf24"};cursor:pointer;font-size:11px;font-weight:800;background:${withdrawRate===r?"#d97706":"#fff7ed"};color:${withdrawRate===r?"#fff":"#92400e"}">${r}%</button>`).join("")}
+          <input type="number" value="${withdrawRate}" min="0.1" max="20" step="0.1" style="width:56px;border:1.5px solid #fbbf24;border-radius:16px;padding:3px 8px;font-size:11px;font-weight:800;color:#92400e;background:#fff" onchange="switchWithdrawRate(+this.value||4)">
+        </div>
+      </div>
       <div style="display:flex;gap:20px;flex-wrap:wrap">
         <div>
           <div style="font-size:10px;color:#92400e;margin-bottom:2px">年間取り崩し可能額</div>
-          <div style="font-size:20px;font-weight:900;color:#78350f">${fmt(Math.round(latest.total*0.04))}</div>
+          <div style="font-size:20px;font-weight:900;color:#78350f">${fmt(Math.round(latest.total*withdrawRate/100))}</div>
         </div>
         <div>
           <div style="font-size:10px;color:#92400e;margin-bottom:2px">月間取り崩し可能額</div>
-          <div style="font-size:20px;font-weight:900;color:#78350f">${fmt(Math.round(latest.total*0.04/12))}</div>
+          <div style="font-size:20px;font-weight:900;color:#78350f">${fmt(Math.round(latest.total*withdrawRate/100/12))}</div>
         </div>
-        <div style="font-size:10px;color:#b45309;line-height:1.8;align-self:flex-end">現在の評価額 × 4% ÷ 12</div>
+        <div style="font-size:10px;color:#b45309;line-height:1.8;align-self:flex-end">現在の評価額 × ${withdrawRate}% ÷ 12</div>
       </div>
     </div>
     <div class="card full">
@@ -829,6 +835,12 @@ function renderSummary(){
     </div>
     <div class="card full">
       <div style="font-size:10px;color:#64748b;font-weight:700;letter-spacing:2px;margin-bottom:10px">📅 月次サマリー</div>
+      <div class="chart-wrap" style="height:190px;margin-bottom:6px"><canvas id="monthlySummaryChart"></canvas></div>
+      <div class="legend" style="margin-bottom:10px">
+        <div class="legend-item"><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:#0d9488;margin-right:2px"></span>評価額（増加月）</div>
+        <div class="legend-item"><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:#e11d48;margin-right:2px"></span>評価額（減少月）</div>
+        <div class="legend-item"><div class="legend-line" style="background:#f59e0b"></div>損益率</div>
+      </div>
       <table style="width:100%;font-size:11px;border-collapse:collapse;table-layout:fixed">
         <colgroup>
           <col style="width:13%">
@@ -878,9 +890,54 @@ function renderSummary(){
     </div>`;
 
   renderDonutChart();
+  buildMonthlySummaryChart();
 
   // ドラムロール初期化
   updateRangeResult();
+}
+
+// ===== 月次サマリー グラフ（評価額バー + 損益率ライン） =====
+function buildMonthlySummaryChart(){
+  const ctx = document.getElementById('monthlySummaryChart')?.getContext('2d');
+  if (!ctx) return;
+  const h = DATA.history;
+  const ms = getMonths();
+  const rows = ms.map((m,mi)=>{
+    const md = h.filter(d=>getMonth(d.date)===m);
+    const ml = md[md.length-1];
+    const pl = mi>0 ? h.filter(d=>getMonth(d.date)===ms[mi-1]).slice(-1)[0] : null;
+    const ec = ml&&pl ? ml.total-pl.total : null;
+    return { month:m, total: ml?.total??null, evalChange: ec, pnlPct: ml?.pnlPct??null };
+  });
+  destroyChart('monthlySummary');
+  charts['monthlySummary'] = new Chart(ctx,{
+    data:{
+      labels: rows.map(r=>r.month.replace(/^\d+年/,"")),
+      datasets:[
+        { type:'bar', label:'評価額', data: rows.map(r=>r.total),
+          backgroundColor: rows.map(r=> r.evalChange==null ? '#93c5fd' : (r.evalChange>=0 ? 'rgba(13,148,136,0.65)' : 'rgba(225,29,72,0.65)')),
+          borderRadius:4, order:2, yAxisID:'y' },
+        { type:'line', label:'損益率', data: rows.map(r=>r.pnlPct),
+          borderColor:'#f59e0b', backgroundColor:'transparent', borderWidth:2,
+          pointRadius:3, pointHoverRadius:5, pointBackgroundColor:'#f59e0b',
+          tension:0.3, spanGaps:true, order:1, yAxisID:'y1' }
+      ]
+    },
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      plugins:{
+        legend:{display:false},
+        tooltip:{callbacks:{ label:c => c.dataset.label==='評価額' ? `評価額：${fmtRaw(c.raw)}` : `損益率：${fmtPct(c.raw)}` }}
+      },
+      scales:{
+        x:{ grid:{display:false}, ticks:{color:'#94a3b8', font:{size:10}} },
+        y:{ position:'left', grid:{color:'#f1f5f9'},
+          ticks:{color:'#94a3b8', font:{size:10}, callback:v=>_stealthMode?'¥ ****':`¥${(v/1e6).toFixed(1)}M`} },
+        y1:{ position:'right', grid:{display:false},
+          ticks:{color:'#f59e0b', font:{size:10}, callback:v=>`${v>0?"+":""}${v.toFixed(0)}%`} }
+      }
+    }
+  });
 }
 
 // ===== ドーナツチャート（ファンド選択可能） =====
@@ -938,7 +995,7 @@ function renderTabs(){
   document.getElementById('mainTabs').innerHTML=[["total","📈 推移"],["monthly","📅 月別"],["funds","💰 ファンド別"],["analysis","📊 詳細分析"],["goals","🎯 積立目標"]]
     .map(([k,l])=>`<button class="tab${mainTab===k?" active":""}" onclick="switchMain('${k}')">${l}</button>`).join("");
 }
-function switchMain(t){mainTab=t;Object.keys(charts).filter(k=>k!=='donut').forEach(destroyChart);renderTabs();renderContent();}
+function switchMain(t){mainTab=t;Object.keys(charts).filter(k=>k!=='donut'&&k!=='monthlySummary').forEach(destroyChart);renderTabs();renderContent();}
 function renderContent(){
   if(mainTab==="total")renderTotal();
   else if(mainTab==="monthly")renderMonthly();
@@ -1180,6 +1237,7 @@ function switchMonthYear(y){
   if(firstInYear){monthTab=firstInYear;destroyChart('month');destroyChart('mfunds');renderMonthly();}
 }
 function switchReturnMethod(m){returnMethod=m;renderSummary();}
+function switchWithdrawRate(r){withdrawRate=Math.min(Math.max(r,0.1),20);renderSummary();}
 function switchMonthSort(order){monthSortOrder=order;renderMonthly();}
 function switchFundsSort(order){monthSortOrder=order;renderFunds();}
 function buildMonthChart(mData){
@@ -1320,6 +1378,8 @@ function renderFunds(){
         ${isMonth && monthPnl!=null ? `<div><div class="card-label">月間損益</div><div style="font-size:15px;font-weight:700;color:${col(monthPnl)}">${fmtSigned(monthPnl)}</div></div>` : ""}
         ${curPnl!=null ? `<div><div class="card-label">含み益</div><div style="font-size:15px;font-weight:700;color:${col(curPnl)}">${fmtSigned(curPnl)}</div></div>` : ""}
         <div><div class="card-label">基準価額</div><div style="font-size:13px;font-weight:600;color:#64748b">${fmt(lf?.nav)}</div></div>
+        <div><div class="card-label">平均取得単価</div><div style="font-size:13px;font-weight:600;color:#f59e0b">${f.cost_nav?fmt(f.cost_nav):"—"}</div></div>
+        <div><div class="card-label">平均取得単価</div><div style="font-size:13px;font-weight:700;color:#f59e0b">${f.cost_nav?fmt(f.cost_nav):"—"}</div></div>
         <div><div class="card-label">最高値比（DD）</div><div style="font-size:13px;font-weight:700;color:${ddColor}">${ddStr}${maxDate?`<span style="font-size:10px;color:#94a3b8;margin-left:4px">最高:${maxDate}</span>`:""}</div></div>
       </div>
       ${costBadge ? `<div style="margin-top:10px;border-top:1px solid #f1f5f9;padding-top:8px">
