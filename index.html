@@ -438,6 +438,23 @@ function calcStreak() {
   return { count, direction: latestDir };
 }
 
+// ===== 過去最長の連勝・連敗記録 =====
+function calcMaxStreaks() {
+  if (!DATA || !DATA.history) return null;
+  const h = DATA.history.filter(d => d.total != null);
+  if (h.length < 2) return null;
+  let dir = null, count = 0, streakFirstDate = null;
+  let maxWin = { count: 0, startDate: null, endDate: null };
+  let maxLoss = { count: 0, startDate: null, endDate: null };
+  for (let i = 1; i < h.length; i++) {
+    const d = h[i].total >= h[i-1].total ? 1 : -1;
+    if (d === dir) { count++; } else { dir = d; count = 1; streakFirstDate = h[i].date; }
+    if (dir === 1 && count > maxWin.count)  maxWin  = { count, startDate: streakFirstDate, endDate: h[i].date };
+    if (dir === -1 && count > maxLoss.count) maxLoss = { count, startDate: streakFirstDate, endDate: h[i].date };
+  }
+  return { maxWin, maxLoss };
+}
+
 
 const fmtSigned = v => {
   if (v==null) return "—";
@@ -833,8 +850,25 @@ function renderSummary(){
         </div>`;
       })()}
     </div>
-    <div class="card full">
-      <div style="font-size:10px;color:#64748b;font-weight:700;letter-spacing:2px;margin-bottom:10px">📅 月次サマリー</div>
+    <div class="card full" style="background:linear-gradient(135deg,#fff7ed,#ffedd5);border-color:#fdba74">
+      <div style="font-size:10px;color:#9a3412;font-weight:700;letter-spacing:2px;margin-bottom:10px">🔥❄️ 連勝・連敗記録（評価額が前日比プラス／マイナスになった日数）</div>
+      ${(()=>{
+        const rec = calcMaxStreaks();
+        if (!rec) return `<div style="color:#94a3b8;font-size:12px">データ不足のため計算できません</div>`;
+        const cur = calcStreak();
+        const box = (icon, label, count, start, end, color) => `
+          <div style="flex:1;min-width:130px;background:#fff;border:1.5px solid ${color}33;border-radius:12px;padding:10px 12px">
+            <div style="font-size:10px;color:#92400e;margin-bottom:4px">${icon} ${label}</div>
+            <div style="font-size:22px;font-weight:900;color:${color}">${count}<span style="font-size:11px;font-weight:700;margin-left:2px">日</span></div>
+            <div style="font-size:10px;color:#94a3b8;margin-top:2px">${start&&end?`${start} 〜 ${end}`:"—"}</div>
+          </div>`;
+        return `<div style="display:flex;gap:10px;flex-wrap:wrap">
+          ${box("🔥","最長連勝記録", rec.maxWin.count, rec.maxWin.startDate, rec.maxWin.endDate, "#0d9488")}
+          ${box("❄️","最長連敗記録", rec.maxLoss.count, rec.maxLoss.startDate, rec.maxLoss.endDate, "#e11d48")}
+          ${box(cur.direction===1?"🔥":cur.direction===-1?"❄️":"—","現在の連続記録", cur.count, null, null, cur.direction===1?"#0d9488":cur.direction===-1?"#e11d48":"#94a3b8")}
+        </div>`;
+      })()}
+    </div>
       <div class="chart-wrap" style="height:190px;margin-bottom:6px"><canvas id="monthlySummaryChart"></canvas></div>
       <div class="legend" style="margin-bottom:10px">
         <div class="legend-item"><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:#0d9488;margin-right:2px"></span>評価額（増加月）</div>
