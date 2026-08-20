@@ -870,32 +870,15 @@ function renderSummary(){
         </div>`;
       })()}
     </div>
+    <div class="card full">
+      <div style="font-size:10px;color:#64748b;font-weight:700;letter-spacing:2px;margin-bottom:10px">📅 月次サマリー</div>
       <div class="chart-wrap" style="height:190px;margin-bottom:6px"><canvas id="monthlySummaryChart"></canvas></div>
       <div class="legend" style="margin-bottom:10px">
         <div class="legend-item"><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:#0d9488;margin-right:2px"></span>評価額（増加月）</div>
         <div class="legend-item"><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:#e11d48;margin-right:2px"></span>評価額（減少月）</div>
         <div class="legend-item"><div class="legend-line" style="background:#f59e0b"></div>損益率</div>
       </div>
-      <table style="width:100%;font-size:11px;border-collapse:collapse;table-layout:fixed">
-        <colgroup>
-          <col style="width:13%">
-          <col style="width:18%">
-          <col style="width:17%">
-          <col style="width:18%">
-          <col style="width:17%">
-          <col style="width:17%">
-        </colgroup>
-        <thead>
-          <tr style="border-bottom:2px solid #bfdbfe">
-            <th style="text-align:left;color:#64748b;padding:5px 4px;font-weight:700;font-size:10px">月</th>
-            <th style="color:#64748b;padding:5px 2px;font-weight:700;font-size:10px;text-align:right;word-break:keep-all">評価額</th>
-            <th style="color:#64748b;padding:5px 2px;font-weight:700;font-size:10px;text-align:right;word-break:keep-all">評価増減</th>
-            <th style="color:#64748b;padding:5px 2px;font-weight:700;font-size:10px;text-align:right;word-break:keep-all">含み益</th>
-            <th style="color:#64748b;padding:5px 2px;font-weight:700;font-size:10px;text-align:right;word-break:keep-all">益増減</th>
-            <th style="color:#64748b;padding:5px 2px;font-weight:700;font-size:10px;text-align:right;word-break:keep-all">損益率</th>
-          </tr>
-        </thead>
-        <tbody>
+      <div>
         ${(()=>{
           const ms = getMonths();
           return ms.map((m,mi)=>{
@@ -905,18 +888,22 @@ function renderSummary(){
             const ec = ml&&pl ? ml.total-pl.total : null;
             const pc = ml&&pl&&ml.pnl!=null&&pl.pnl!=null ? ml.pnl-pl.pnl : null;
             const isL = mi===ms.length-1;
-            return `<tr style="border-bottom:1px solid #eff6ff;background:${isL?"rgba(59,130,246,0.04)":""}">
-              <td style="padding:6px 4px;font-weight:${isL?800:600};color:${isL?"#1e3a5f":"#475569"};font-size:11px">${m}${isL?"✦":""}</td>
-              <td style="text-align:right;padding:6px 2px;font-weight:600;color:#1e293b;font-size:11px">${fmtC(ml?.total)}</td>
-              <td style="text-align:right;padding:6px 2px;font-weight:700;color:${col(ec)};font-size:11px">${ec!=null?fmtCS(ec):"—"}</td>
-              <td style="text-align:right;padding:6px 2px;font-weight:600;color:${col(ml?.pnl)};font-size:11px">${fmtCS(ml?.pnl)}</td>
-              <td style="text-align:right;padding:6px 2px;font-weight:700;color:${col(pc)};font-size:11px">${pc!=null?fmtCS(pc):"—"}</td>
-              <td style="text-align:right;padding:6px 2px;font-weight:700;color:${col(ml?.pnlPct)};font-size:11px">${fmtPct(ml?.pnlPct)}</td>
-            </tr>`;
+            const stat = (label,val,fmtFn) => `<div style="min-width:0"><div style="font-size:9px;color:#94a3b8;margin-bottom:1px">${label}</div><div style="font-size:11.5px;font-weight:700;color:${col(val)}">${val!=null?fmtFn(val):"—"}</div></div>`;
+            return `<div style="padding:9px 0;border-bottom:1px solid #eff6ff;background:${isL?"rgba(59,130,246,0.04)":"transparent"}">
+              <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px">
+                <span style="font-weight:${isL?800:700};font-size:12px;color:${isL?"#1e3a5f":"#475569"}">${m}${isL?" ✦":""}</span>
+                <span style="font-weight:800;font-size:15px;color:#1e293b">${fmtC(ml?.total)}</span>
+              </div>
+              <div style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px">
+                ${stat("評価増減", ec, fmtCS)}
+                ${stat("含み益", ml?.pnl, fmtCS)}
+                ${stat("益増減", pc, fmtCS)}
+                ${stat("損益率", ml?.pnlPct, fmtPct)}
+              </div>
+            </div>`;
           }).join("");
         })()}
-        </tbody>
-      </table>
+      </div>
     </div>
     <div class="card full">
       <div style="font-size:10px;color:#64748b;font-weight:700;letter-spacing:2px;margin-bottom:10px">🍩 ポートフォリオ構成比 <span style="font-weight:500;letter-spacing:0;color:#94a3b8">（タップで含む/含まないを切替）</span></div>
