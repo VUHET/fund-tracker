@@ -851,21 +851,22 @@ function renderSummary(){
       })()}
     </div>
     <div class="card full" style="background:linear-gradient(135deg,#fff7ed,#ffedd5);border-color:#fdba74">
-      <div style="font-size:10px;color:#9a3412;font-weight:700;letter-spacing:2px;margin-bottom:10px">🔥❄️ 連勝・連敗記録（評価額が前日比プラス／マイナスになった日数）</div>
+      <div style="font-size:10px;color:#9a3412;font-weight:700;letter-spacing:2px;margin-bottom:10px">🔥❄️ 連勝・連敗記録</div>
+      <div style="font-size:10px;color:#c2703d;margin-bottom:10px">評価額が前日比プラス／マイナスだった連続日数</div>
       ${(()=>{
         const rec = calcMaxStreaks();
         if (!rec) return `<div style="color:#94a3b8;font-size:12px">データ不足のため計算できません</div>`;
         const cur = calcStreak();
         const box = (icon, label, count, start, end, color) => `
-          <div style="flex:1;min-width:130px;background:#fff;border:1.5px solid ${color}33;border-radius:12px;padding:10px 12px">
-            <div style="font-size:10px;color:#92400e;margin-bottom:4px">${icon} ${label}</div>
-            <div style="font-size:22px;font-weight:900;color:${color}">${count}<span style="font-size:11px;font-weight:700;margin-left:2px">日</span></div>
-            <div style="font-size:10px;color:#94a3b8;margin-top:2px">${start&&end?`${start} 〜 ${end}`:"—"}</div>
+          <div style="background:#fff;border:1.5px solid ${color}33;border-radius:12px;padding:8px 6px;text-align:center;overflow:hidden">
+            <div style="font-size:9.5px;color:#92400e;margin-bottom:4px;white-space:nowrap">${icon} ${label}</div>
+            <div style="font-size:19px;font-weight:900;color:${color};line-height:1.2">${count}<span style="font-size:10px;font-weight:700;margin-left:1px">日</span></div>
+            <div style="font-size:8.5px;color:#94a3b8;margin-top:3px;line-height:1.4">${start&&end?`${start}<br>〜 ${end}`:"—"}</div>
           </div>`;
-        return `<div style="display:flex;gap:10px;flex-wrap:wrap">
-          ${box("🔥","最長連勝記録", rec.maxWin.count, rec.maxWin.startDate, rec.maxWin.endDate, "#0d9488")}
-          ${box("❄️","最長連敗記録", rec.maxLoss.count, rec.maxLoss.startDate, rec.maxLoss.endDate, "#e11d48")}
-          ${box(cur.direction===1?"🔥":cur.direction===-1?"❄️":"—","現在の連続記録", cur.count, null, null, cur.direction===1?"#0d9488":cur.direction===-1?"#e11d48":"#94a3b8")}
+        return `<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px">
+          ${box("🔥","最長連勝", rec.maxWin.count, rec.maxWin.startDate, rec.maxWin.endDate, "#0d9488")}
+          ${box("❄️","最長連敗", rec.maxLoss.count, rec.maxLoss.startDate, rec.maxLoss.endDate, "#e11d48")}
+          ${box(cur.direction===1?"🔥":cur.direction===-1?"❄️":"—","現在の記録", cur.count, null, null, cur.direction===1?"#0d9488":cur.direction===-1?"#e11d48":"#94a3b8")}
         </div>`;
       })()}
     </div>
