@@ -688,6 +688,7 @@ function renderSummary(){
     <div class="card">
       <div class="card-label">最新評価額（${latest.date}）</div>
       <div style="font-size:17px;font-weight:800;color:#1e3a5f">${fmt(latest.total)}</div>
+      <div style="font-size:11px;color:#94a3b8;margin-top:2px">投資元本 ${latest.pnl!=null?fmt(latest.total-latest.pnl):"—"}</div>
       ${athBadgeHtml}
       ${streakBadgeHtml}
     </div>
@@ -1309,6 +1310,7 @@ function renderFunds(){
     const firstNav = ff  && f.cost_nav ? f.cost_nav*(1+ff.pnlPct/100)  : null;
     const monthPnl = f.units && lastNav && firstNav ? Math.round(f.units*(lastNav-firstNav)/10000) : null;
     const curPnl   = f.units && f.cost_nav && lastNav ? Math.round(f.units*(lastNav-f.cost_nav)/10000) : null;
+    const principal = f.units && f.cost_nav ? Math.round(f.units*f.cost_nav/10000) : null;
 
     // ドローダウン計算（全データの最高pnlPctからの下落率）
     const allValid = f.data.filter(d=>d.pnlPct!=null);
@@ -1326,13 +1328,13 @@ function renderFunds(){
                   : ddAbs >= 10 ? {level:"🟡 -10%超", color:"#ca8a04", bg:"rgba(202,138,4,0.08)"}
                   : null;
 
-    return { f, lf, ff, diff, monthPnl, curPnl, drawdown, maxPnlPct, maxDate, ddAlert };
+    return { f, lf, ff, diff, monthPnl, curPnl, principal, drawdown, maxPnlPct, maxDate, ddAlert };
   });
 
   if (monthSortOrder==="desc") fundList.sort((a,b)=>(b.lf?.pnlPct??-999)-(a.lf?.pnlPct??-999));
   else if (monthSortOrder==="asc") fundList.sort((a,b)=>(a.lf?.pnlPct??999)-(b.lf?.pnlPct??999));
 
-  const fundCards = fundList.map(({f, lf, diff, monthPnl, curPnl, drawdown, maxPnlPct, maxDate, ddAlert}) => {
+  const fundCards = fundList.map(({f, lf, diff, monthPnl, curPnl, principal, drawdown, maxPnlPct, maxDate, ddAlert}) => {
     const ddStr = drawdown!=null ? (drawdown>=0?"±0":drawdown.toFixed(2)+"%") : "—";
     const ddColor = drawdown!=null && drawdown < 0 ? "#e11d48" : "#0d9488";
 
@@ -1399,6 +1401,7 @@ function renderFunds(){
         <div><div class="card-label">${isMonth?"月内変化":"期間変化"}</div><div style="font-size:15px;font-weight:700;color:${col(diff)}">${diff!=null?(diff>=0?"+":"")+diff.toFixed(2)+"%":"—"}</div></div>
         ${isMonth && monthPnl!=null ? `<div><div class="card-label">月間損益</div><div style="font-size:15px;font-weight:700;color:${col(monthPnl)}">${fmtSigned(monthPnl)}</div></div>` : ""}
         ${curPnl!=null ? `<div><div class="card-label">含み益</div><div style="font-size:15px;font-weight:700;color:${col(curPnl)}">${fmtSigned(curPnl)}</div></div>` : ""}
+        <div><div class="card-label">投資元本</div><div style="font-size:13px;font-weight:700;color:#64748b">${principal!=null?fmt(principal):"—"}</div></div>
         <div><div class="card-label">基準価額</div><div style="font-size:13px;font-weight:600;color:#64748b">${fmt(lf?.nav)}</div></div>
         <div><div class="card-label">平均取得単価</div><div style="font-size:13px;font-weight:700;color:#f59e0b">${f.cost_nav?fmt(f.cost_nav):"—"}</div></div>
         <div><div class="card-label">最高値比（DD）</div><div style="font-size:13px;font-weight:700;color:${ddColor}">${ddStr}${maxDate?`<span style="font-size:10px;color:#94a3b8;margin-left:4px">最高:${maxDate}</span>`:""}</div></div>
